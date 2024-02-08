@@ -14,7 +14,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_SettingWindow(object):
     def setupUi(self, SettingWindow):
         SettingWindow.setObjectName("SettingWindow")
-        SettingWindow.resize(400, 300)
+        SettingWindow.resize(404, 299)
         self.verticalLayout = QtWidgets.QVBoxLayout(SettingWindow)
         self.verticalLayout.setObjectName("verticalLayout")
         self.gridLayout_2 = QtWidgets.QGridLayout()
@@ -34,6 +34,15 @@ class Ui_SettingWindow(object):
         self.gridLayout_2.addWidget(self.pushButton_configure, 5, 0, 1, 1)
         self.horizontalLayout = QtWidgets.QHBoxLayout()
         self.horizontalLayout.setObjectName("horizontalLayout")
+        self.lineEdit_Kp = QtWidgets.QLineEdit(SettingWindow)
+        self.lineEdit_Kp.setObjectName("lineEdit_Kp")
+        self.horizontalLayout.addWidget(self.lineEdit_Kp)
+        self.lineEdit_Ki = QtWidgets.QLineEdit(SettingWindow)
+        self.lineEdit_Ki.setObjectName("lineEdit_Ki")
+        self.horizontalLayout.addWidget(self.lineEdit_Ki)
+        self.lineEdit_Kd = QtWidgets.QLineEdit(SettingWindow)
+        self.lineEdit_Kd.setObjectName("lineEdit_Kd")
+        self.horizontalLayout.addWidget(self.lineEdit_Kd)
         self.label_9 = QtWidgets.QLabel(SettingWindow)
         self.label_9.setObjectName("label_9")
         self.horizontalLayout.addWidget(self.label_9)
@@ -85,6 +94,12 @@ class Ui_SettingWindow(object):
         self.gridLayout_2.addLayout(self.horizontalLayout_3, 3, 0, 1, 1)
         self.horizontalLayout_2 = QtWidgets.QHBoxLayout()
         self.horizontalLayout_2.setObjectName("horizontalLayout_2")
+        self.label_integral = QtWidgets.QLabel(SettingWindow)
+        self.label_integral.setObjectName("label_integral")
+        self.horizontalLayout_2.addWidget(self.label_integral)
+        self.label_prev_error = QtWidgets.QLabel(SettingWindow)
+        self.label_prev_error.setObjectName("label_prev_error")
+        self.horizontalLayout_2.addWidget(self.label_prev_error)
         self.label_10 = QtWidgets.QLabel(SettingWindow)
         self.label_10.setObjectName("label_10")
         self.horizontalLayout_2.addWidget(self.label_10)
@@ -95,6 +110,7 @@ class Ui_SettingWindow(object):
         self.verticalLayout.addLayout(self.gridLayout_2)
 
         self.retranslateUi(SettingWindow)
+        self.pushButton_top.clicked.connect(self.label_hoist_height_top.clear) # type: ignore
         QtCore.QMetaObject.connectSlotsByName(SettingWindow)
 
     def retranslateUi(self, SettingWindow):
@@ -102,6 +118,9 @@ class Ui_SettingWindow(object):
         SettingWindow.setWindowTitle(_translate("SettingWindow", "Dialog"))
         self.label_12.setText(_translate("SettingWindow", "HB Dimension Vertical:"))
         self.pushButton_configure.setText(_translate("SettingWindow", "Configure"))
+        self.lineEdit_Kp.setText(_translate("SettingWindow", "1.6"))
+        self.lineEdit_Ki.setText(_translate("SettingWindow", "0.01"))
+        self.lineEdit_Kd.setText(_translate("SettingWindow", "0.001"))
         self.label_9.setText(_translate("SettingWindow", "Trolley Max Speed:"))
         self.label_xyxy_bottom.setText(_translate("SettingWindow", "8562.56"))
         self.label_3.setText(_translate("SettingWindow", "xyxy"))
@@ -114,4 +133,6 @@ class Ui_SettingWindow(object):
         self.label.setText(_translate("SettingWindow", "Hoist Height:"))
         self.pushButton_top.setText(_translate("SettingWindow", "Top"))
         self.label_11.setText(_translate("SettingWindow", "HB Dimension Horizontal:"))
+        self.label_integral.setText(_translate("SettingWindow", "Integral"))
+        self.label_prev_error.setText(_translate("SettingWindow", "Prev error"))
         self.label_10.setText(_translate("SettingWindow", "Trolley Acceleration:"))

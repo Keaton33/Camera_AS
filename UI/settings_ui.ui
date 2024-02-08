@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>400</width>
-    <height>300</height>
+    <width>404</width>
+    <height>299</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -42,6 +42,27 @@
      </item>
      <item row="1" column="0">
       <layout class="QHBoxLayout" name="horizontalLayout">
+       <item>
+        <widget class="QLineEdit" name="lineEdit_Kp">
+         <property name="text">
+          <string>0</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_Ki">
+         <property name="text">
+          <string>0</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_Kd">
+         <property name="text">
+          <string>0</string>
+         </property>
+        </widget>
+       </item>
        <item>
         <widget class="QLabel" name="label_9">
          <property name="text">
@@ -144,6 +165,20 @@
      </item>
      <item row="2" column="0">
       <layout class="QHBoxLayout" name="horizontalLayout_2">
+       <item>
+        <widget class="QLabel" name="label_integral">
+         <property name="text">
+          <string>Integral</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="label_prev_error">
+         <property name="text">
+          <string>Prev error</string>
+         </property>
+        </widget>
+       </item>
        <item>
         <widget class="QLabel" name="label_10">
          <property name="text">

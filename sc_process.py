@@ -1,10 +1,7 @@
 import json
 
 
-from PyQt5.QtWidgets import QApplication, QDialog, QMainWindow, QWidget
-
-
-class Process():
+class Process:
     def __init__(self):
         with open('./config.json', 'r') as cfg:
             dic_cfg = json.load(cfg)
@@ -17,11 +14,7 @@ class Process():
             self.h_height = dic_cfg['plc']['db_hoist_height']
         cfg.close()
 
-        # client.disconnect()
-        # self.h_height = hoist_height
-        # self.t_position = trolley_position
-        # self.t_speed = trolley_speed
-
+# region the hoist path is not a slope, this code not available
     def set_slope_scale(self, hoist_height_top, hoist_height_bottom, xyxy_top, xyxy_bottom):
         mid_top = [(int(xyxy_top[2]) + int(xyxy_top[0])) / 2, (int(xyxy_top[3]) + int(xyxy_top[1])) / 2]
         mid_bottom = [(int(xyxy_bottom[2]) + int(xyxy_bottom[0])) / 2, (int(xyxy_bottom[3]) + int(xyxy_bottom[1])) / 2]
@@ -47,28 +40,7 @@ class Process():
 
             cfg.close()
 
-
-    def set_points(self, xyxy, flag):
-        points = {}
-        while not flag:
-            hoist_height = self.get_hoist_height()
-            if points:
-                last_point_height = list(points.keys())[-1]
-                if last_point_height - hoist_height > 10:
-                    points[hoist_height] = xyxy
-            else:
-                points[hoist_height] = xyxy
-        # self.client.disconnect()
-        # self.client.destroy()
-        print(flag)
-        with open('./config.json', 'w') as cfg:
-            dic_cfg = json.load(cfg)
-            dic_cfg['process']['point_top'][0] = self.get_hoist_height()
-            dic_cfg['process']['point_top'][1] = xyxy
-            dic_cfg['process']['points'] = points
-            json.dump(dic_cfg, cfg, indent=4)
-
-            cfg.close()
+# endregion
 
     def set_trolley_max_spd(self):
         pass
@@ -81,10 +53,3 @@ class Process():
 
     def set_hb_dimension_ver(self):
         pass
-
-
-# p = Process()
-#
-# # p.y_slope
-# p.hb_hor_dimension
-# p.hb_ver_dimension

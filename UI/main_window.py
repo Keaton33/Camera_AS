@@ -16,6 +16,7 @@ class MainWindow(QMainWindow):
         self.trend_chart_1 = pg.PlotWidget()
         self.trend_curve1_1 = self.trend_chart_1.plot(pen='r')  # Red curve
         self.trend_curve1_2 = self.trend_chart_1.plot(pen='g')  # Green curve
+        self.trend_curve1_3 = self.trend_chart_1.plot(pen='b')  # Green curve
 
         self.trend_chart_2 = pg.PlotWidget()
         self.trend_curve2_1 = self.trend_chart_2.plot(pen='r')  # Green curve
@@ -41,9 +42,11 @@ class MainWindow(QMainWindow):
             pixmap = QPixmap.fromImage(q_image)
             self.ui.label_img.setPixmap(pixmap)
 
-    def show_chart1(self, data1, data2):
+    def show_chart1(self, data1, data2, data3):
         self.trend_curve1_1.setData(data1)
         self.trend_curve1_2.setData(data2)
+        self.trend_curve1_3.setData(data3)
+
 
     def show_chart2(self, data1, data2, data3):
         self.trend_curve2_1.setData(data1)

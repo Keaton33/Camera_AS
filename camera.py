@@ -12,6 +12,7 @@ import threading
 
 class Camera:
     def __init__(self, source):
+        self.bboxes_xyxy = None
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.model = YOLO('./best.pt')
         self.model.to('cuda:0')
@@ -154,7 +155,8 @@ class Camera:
         fps_string = 'FPS  ' + str(int(fps))  # 写在画面上的字符串
         img_bgr = cv2.putText(img_bgr, fps_string, (25, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 255), 2)
 
-        img_bgr = cv2.circle(img_bgr, (int(hb_center_set[0]), int(hb_center_set[1])), radius=5, color=(0,255,0), thickness=-1)
+        img_bgr = cv2.circle(img_bgr, (int(hb_center_set[0]), int(hb_center_set[1])), radius=5, color=(0, 255, 0),
+                             thickness=-1)
         return img_bgr, self.bboxes_xyxy
 
 
@@ -167,7 +169,7 @@ if __name__ == '__main__':
         camera = Camera(url)
         while True:
             frame = camera.get_frame()
-            img, xyxy = camera.process_frame(frame)
+            img, xyxy = camera.process_frame(frame, [1, 1, 1, 1])
             q_put.put(img)
 
 
