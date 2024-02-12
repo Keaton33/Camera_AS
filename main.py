@@ -9,6 +9,7 @@ from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QApplication
 import threading
 
+import sc_process
 from camera import Camera
 from UI import main_window, setting_window, alarm_window, comm_window
 import plc
@@ -25,6 +26,8 @@ def process_frames(q_put, share_list):
     camera = Camera(url)
     integral, prev_error = 0, 0
 
+    sc_control = sc_process.Process()
+
     with open('./config.json', 'r') as cfg:
         cfg_dit = json.load(cfg)
         ref_center = cfg_dit['process']['points']
@@ -39,11 +42,14 @@ def process_frames(q_put, share_list):
     combined_list = [[x, y] for x, y in zip(center_height, center_point)]
     transformed_list = [[i[0]] + i[1] for i in combined_list]
     combined_np = np.array(transformed_list)
+    as_activate = False
+    as_require = False
+    trolley_spd_cmd = 0
 
     while True:
-        t = time.time()
+        t_ = time.time()
         frame = camera.get_frame()
-        hoist_height = plc.get_hoist_height()
+        hoist_height = share_list[5]
         index_np = np.where(combined_np[:, 0] > hoist_height)[0]
         if len(index_np) > 0:
             result_np = combined_np[index_np[-1], 1:].tolist()
@@ -58,62 +64,58 @@ def process_frames(q_put, share_list):
             if len(xyxy) > 0:
                 hb_center_act = [int((xyxy[0][2] + xyxy[0][0]) / 2), int((xyxy[0][3] + xyxy[0][1]) / 2)]
 
-                trolley_spd_set = plc.get_trolley_set_spd()
-                trolley_spd_act = plc.get_trolley_act_spd()
-                trolley_position = plc.get_trolley_position()
+                trolley_spd_set = share_list[7]
+                trolley_spd_act = share_list[8]
+                trolley_position = share_list[6]
                 distance_diff = (hb_center_act[1] - hb_center_set[1]) * distance_scale
+
+                dt = time.time() - t_
                 # hb_spd = trolley_spd_act - distance_diff /
                 Kp = share_list[0]
                 Ki = share_list[1]
                 Kd = share_list[2]
-                share_list[3] = integral
-                share_list[4] = prev_error
+                share_list[3] = sc_control.integral
+                share_list[4] = sc_control.prev_error
 
-                error = 0 - distance_diff
-                integral += error * 0.05
-                derivative = (error - prev_error) / 0.05
-                distance_offset = Kp * error + Ki * integral + Kd * derivative
-                prev_error = error
+                sc_control.set_pid_constants(Kp, Ki, Kd)
+                pid_offset = sc_control.pid(distance_diff, dt)
 
-                trolley_spd_cmd =  -distance_offset / 1000 / 0.02 / 2
+                args = {'v_now': trolley_spd_act, 'v_cmd': trolley_spd_set,
+                        'pid_offset': pid_offset, 'dt': dt,
+                        'ramp_up_time': 6, 'ramp_down_time': 6, 'max_spd_per': 1}
+                trolley_spd_cmd = sc_control.speed_with_ramp(**args)
 
-
-                # setpoint = pid(distance_diff, 0, 0.1)
-                # setpoint = 0
-                # if trolley_spd_act > 0 and trolley_spd_set >= 0 and distance_diff > 100:
-                #     trolley_spd_cmd = trolley_spd_set * 0.2
-                # elif trolley_spd_act > 0 and trolley_spd_set >= 0 and distance_diff < -100:
-                #     trolley_spd_cmd = -trolley_spd_set * 0.2
-                # elif trolley_spd_act < 0 and trolley_spd_set <= 0 and distance_diff < -100:
-                #     trolley_spd_cmd = trolley_spd_set * 0.2
-                # elif trolley_spd_act < 0 and trolley_spd_set <= 0 and distance_diff > 100:
-                #     trolley_spd_cmd = -trolley_spd_set * 0.2
-                # else:
-                # trolley_spd_cmd = 0
-                plc.set_trolley_cmd_spd(trolley_spd_cmd)
-                print(time.time() - t)
+                if abs(trolley_spd_act) == 0 and distance_diff < 0.5:
+                    as_require = 0.0
+                else:
+                    as_require = 1.0
+                # print(time.time() - t_)
+                share_list[9] = as_require
+                share_list[10] = trolley_spd_cmd
                 q_dict = {'hoist_height': hoist_height, 'img': img, 'xyxy': xyxy[0], 'center_set': hb_center_set,
-                          'center_act': hb_center_act, 'trolley_spd_set': trolley_spd_set,
+                          'center_act': hb_center_act, 'trolley_spd_set': trolley_spd_set, 'as_require': as_require,
                           'trolley_spd_act': trolley_spd_act, 'distance_diff': distance_diff,
-                          'trolley_position': trolley_position, 'trolley_spd_cmd': trolley_spd_cmd, 'setpoint': distance_offset}
+                          'trolley_position': trolley_position, 'trolley_spd_cmd': trolley_spd_cmd,
+                          'setpoint': pid_offset}
+
                 q_put.put(q_dict)
+                # print(time.time() - t_)
 
 
 # endregion
-
-
 
 
 # region 'main window' thread for queue get all info to global variable
 def update_ui(q_get):
     global shared_data
 
-    while True:
-        shared_data = q_get.get()
+    # while True:
 
-        main_window.show_pix(shared_data['img'])
+    shared_data = q_get.get()
 
-        main_window.show_center_act(str(shared_data['xyxy']))
+    main_window.show_pix(shared_data['img'])
+
+    main_window.show_center_act(str(shared_data['xyxy']))
 
 
 # endregion
@@ -154,8 +156,15 @@ def update_trend():
     manager_list[0] = float(setting_window.ui.lineEdit_Kp.text())
     manager_list[1] = float(setting_window.ui.lineEdit_Ki.text())
     manager_list[2] = float(setting_window.ui.lineEdit_Kd.text())
-    setting_window.ui.label_integral.setText(str(round(manager_list[3],2)))
+    setting_window.ui.label_integral.setText(str(round(manager_list[3], 2)))
     setting_window.ui.label_prev_error.setText(str(round(manager_list[4], 2)))
+    manager_list[5] = plc.get_hoist_height()
+    manager_list[6] = plc.get_trolley_position()
+    manager_list[7] = plc.get_trolley_set_spd()
+    manager_list[8] = plc.get_trolley_act_spd()
+    plc.set_trolley_cmd_statue(manager_list[9])
+    plc.set_trolley_cmd_spd(manager_list[10])
+
 
 # region 'setting window' set reference start point
 def start_point():
@@ -222,7 +231,7 @@ def set_points():
 if __name__ == '__main__':
     q = Queue()
     manager = multiprocessing.Manager()
-    manager_list = manager.list([0, 0, 0, 0, 0])
+    manager_list = manager.list([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     # Start the processor to process frames
     p1 = Process(target=process_frames, args=(q, manager_list))
     p1.daemon = True
@@ -246,9 +255,14 @@ if __name__ == '__main__':
     setting_window.ui.pushButton_bottom.clicked.connect(stop_point)
 
     # Start the thread to update the UI
-    ui_update_thread = threading.Thread(target=update_ui, args=(q,))
-    ui_update_thread.daemon = True
-    ui_update_thread.start()
+    # ui_update_thread = threading.Thread(target=update_ui, args=(q,))
+    # ui_update_thread.daemon = True
+    # ui_update_thread.start()
+
+    timer_update_ui = QTimer()
+    timer_update_ui.setInterval(20)
+    timer_update_ui.timeout.connect(lambda: update_ui(q))
+    timer_update_ui.start()
 
     timer = QTimer()
     timer.setInterval(50)

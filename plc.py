@@ -10,6 +10,7 @@ client.connect('192.168.0.1', rack=0, slot=1)
 def cleanup():
     if client.get_connected():
         set_trolley_cmd_spd(0)
+        set_trolley_cmd_statue(0)
         client.disconnect()
         client.destroy()
 
@@ -39,7 +40,7 @@ def get_trolley_position():
 
 
 def get_trolley_set_spd():
-    byte_arrays = client.db_read(30, 222, 4)
+    byte_arrays = client.db_read(30, 198, 4)
     if byte_arrays:
         value = snap7.util.get_real(byte_arrays, 0)
         return value
@@ -59,5 +60,10 @@ def get_trolley_act_spd():
 def set_trolley_cmd_spd(cmd_spd):
     byte_arrays = bytearray(struct.pack('>f', cmd_spd))
     return client.db_write(30, 154, byte_arrays)
+
+
+def set_trolley_cmd_statue(cmd_statue):
+    byte_arrays = bytearray(struct.pack('>f', cmd_statue))
+    return client.db_write(30, 150, byte_arrays)
 
 
