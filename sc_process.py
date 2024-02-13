@@ -16,6 +16,8 @@ import numpy as np
 class Process:
     def __init__(self, Kp=1.0, Ki=0.1, Kd=0.1):
 
+        self.duration = 0
+        self.max_amplitude = 0
         try:
             with open('./config.json', 'r') as cfg:
                 dic_cfg = json.load(cfg)
@@ -25,14 +27,12 @@ class Process:
             print("Config file not found.")
             # 如果文件不存在，则可以提供默认值或者抛出异常进行处理
 
-        self.min_amplitude_sign = False
-        self.max_amplitude_sign = False
         self.integral = 0
         self.prev_error = 0
         self.speed_interior = 0
         self.set_spd = [0]
         self.smooth_spd = [0]
-        self.distance_diff_record = []
+        self.distance_diff_record = [0]
         self.Kp = Kp
         self.Ki = Ki
         self.Kd = Kd
@@ -78,116 +78,52 @@ class Process:
                     self.speed_interior -= ramp_down * dt
                 else:
                     self.speed_interior += ramp_up * dt
-            elif int(v_cmd) == int(self.speed_interior) and (int(v_cmd) != 0 or self.speed_interior == 0):
+            elif int(v_cmd) == int(self.speed_interior) and (int(v_cmd) != 0 or int(self.speed_interior) == 0):
                 self.speed_interior = v_cmd
             else:
                 self.speed_interior += ramp_down * dt
-
-
         else:
             if self.speed_interior > v_cmd:
                 if self.speed_interior > 0:
                     self.speed_interior += ramp_down * dt
                 else:
                     self.speed_interior -= ramp_up * dt
-            elif int(self.speed_interior) == int(v_cmd) and (int(v_cmd) != 0 or self.speed_interior == 0):
+            elif int(self.speed_interior) == int(v_cmd) and (int(v_cmd) != 0 or int(self.speed_interior) == 0):
                 self.speed_interior = v_cmd
             else:
                 self.speed_interior -= ramp_down * dt
+        #  斜坡后达到控制速度
 
-        # if v_cmd > 0:
-        #     if v_cmd > v_now >= 0:
-        #         v_set = v_now + ramp_up * dt
-        #     elif v_now == v_cmd:
-        #         v_set = v_now
-        #     elif v_now > v_cmd:
-        #         v_set = v_now + ramp_down * dt
-        #     elif v_now < 0:
-        #         v_set = v_now - ramp_down * dt
-        # elif v_cmd == 0:
-        #     if v_now > 0:
-        #         v_set = v_now + ramp_down * dt
-        #     elif v_now == 0:
-        #         v_set = 0
-        #     elif v_now < 0:
-        #         v_set = v_now - ramp_down * dt
-        # elif v_cmd < 0:
-        #     if v_cmd < v_now <= 0:
-        #         v_set = v_now - ramp_up * dt
-        #     elif v_now == v_cmd:
-        #         v_set = v_now
-        #     elif v_now < v_cmd:
-        #         v_set = v_now - ramp_down * dt
-        #     elif v_now > 0:
-        #         v_set = v_now + ramp_down * dt
-
-        # if v_cmd >= 0:
-        #     if v_now >= 0:
-        #         if v_cmd > v_now:
-        #             v_set = v_now + ramp_up * dt*2
-        #         elif v_cmd == v_now:
-        #             v_set = v_cmd
-        #         else:
-        #             v_set = v_now + ramp_down * dt
-        #     else:
-        #         v_set = v_now - ramp_down * dt
-        # else:
-        #     if v_now <= 0:
-        #         if v_now > v_cmd:
-        #             v_set = v_now - ramp_up * dt*2
-        #         elif v_cmd == v_now:
-        #             v_set = v_cmd
-        #         else:
-        #             v_set = v_now - ramp_down * dt
-        #     else:
-        #         v_set = v_now + ramp_down * dt
-        #  达到控制速度
-        # if v_cmd >= 0:
-        #     self.speed_interior = min(v_cmd, self.speed_interior)
-        # else:
-        #     self.speed_interior = max(v_cmd, self.speed_interior)
-        #  限制最大速度
+        if len(self.set_spd) > 100:
+            self.set_spd = self.set_spd[-100:]
+            self.smooth_spd = self.smooth_spd[-100:]
+        #  清空速度记录列表
 
         if dt == 0:
-            # cntr_acc = 0
             speed_out = self.speed_interior
             self.set_spd = [0]
         else:
-            speed_offset = (pid_offset / dt) / (180/60)  # 要补偿调节量的速度
-            print(speed_offset)
-            test = self.find_max_amplitude(speed_offset, dt)
-            print(test)
-            if test['max_amplitude'] is not None:
-                if abs(test['max_amplitude']) > 1 :
-                    if int(self.speed_interior) == 0:
-                        # self.speed_interior = 1
-                        pass
-                    
-            self.set_spd.append(self.speed_interior + speed_offset) # 基础速度 + 调节速度
-            if self.speed_interior == 0:
-                self.set_spd = [0]
-                self.smooth_spd = [0]
-            self.smooth_spd = self.moving_average(self.set_spd, 10)
+            speed_offset = (pid_offset / dt) / (180 / 60)  # 要补偿调节量的速度
+            # print("\rspeed adjust： {:.2f}%".format(speed_offset), end='')
+            self.set_spd.append(self.speed_interior + speed_offset)  # 基础速度 + 调节速度
+            self.smooth_spd = self.moving_average(self.set_spd, 5)
 
-
-            max_spd_offset = self.speed_interior + (100 / ramp_up_time * dt)
-            min_spd_offset = self.speed_interior - (100 / ramp_down_time * dt)
-            speed_out = max(min_spd_offset, min(max_spd_offset, self.set_spd[-1]))
-
-            # cntr_acc = max(-100 / ramp_down_time, min(100 / ramp_up_time, (set_spd - v_now) / dt))
-            #  限制pid后在基本速度上调整下周期速度变化量
-
-        # cntr_spd = v_now - cntr_acc * dt  # 最终控制速度
-        # cntr_spd = v_out
+            if len(self.smooth_spd) > 5:
+                max_spd_offset = self.smooth_spd[-2] + (100 / ramp_up_time * dt)
+                min_spd_offset = self.smooth_spd[-2] - (100 / ramp_down_time * dt)
+                speed_out = max(min_spd_offset, min(max_spd_offset, self.smooth_spd[-1]))
+                #  限制pid后在基本速度上调整下周期速度变化量????只变一次
+            else:
+                speed_out = self.speed_interior
         if v_cmd > 0:
-            cntr_spd = max(0, min(v_cmd, speed_out))
+            cntr_spd = max(0, speed_out)
         elif v_cmd < 0:
-            cntr_spd = max(v_cmd, min(0, speed_out))
+            cntr_spd = min(0, speed_out)
         else:
             cntr_spd = speed_out
-        # 限制最终输出速度
+        # 限制最终输出速度, 向前时不可以-速度
 
-        return self.smooth_spd[-1]
+        return cntr_spd
 
     @staticmethod
     def moving_average(data, window_size):
@@ -196,6 +132,12 @@ class Process:
         # 使用convolve函数来计算移动平均
         # mode='valid' 表示只计算完全重叠的部分
         return np.convolve(data, weights, 'valid')
+
+    @staticmethod
+    def pendulum_model_duration(L):
+        # 计算单摆的周期
+        period = 2 * np.pi * np.sqrt(L / 9.8)
+        return period
 
     @staticmethod
     def pendulum_model(L, max_amplitude):
@@ -252,20 +194,57 @@ class Process:
         closest_value = array[closest_index]
         return closest_index, closest_value
 
-    def find_max_amplitude(self, distance_diff, dt):
-        self.distance_diff_record.append(distance_diff)
+    # def find_max_amplitude(self, distance_diff, dt, duration):
+    #     if distance_diff != self.distance_diff_record[-1]:
+    #         self.distance_diff_record.append(distance_diff)
+    #         self.duration = 0
+    #     else:
+    #         self.duration += dt
+    #     if len(self.distance_diff_record) > 1:
+    #         ds = self.distance_diff_record[-1] - self.distance_diff_record[-2]
+    #         if distance_diff > 0 > ds / dt and not self.max_amplitude_sign:
+    #             self.max_amplitude = self.distance_diff_record[-2]
+    #             self.distance_diff_record = [0]
+    #             self.max_amplitude_sign = True
+    #             self.min_amplitude_sign = False
+    #         elif distance_diff < 0 < ds / dt and not self.min_amplitude_sign:
+    #             self.max_amplitude = self.distance_diff_record[-2]
+    #             self.distance_diff_record = [0]
+    #             self.min_amplitude_sign = True
+    #             self.max_amplitude_sign = False
+    #     else:
+    #         self.max_amplitude = 0
+    #         self.duration = 0
+    #         self.distance_diff_record = [0]
+    #         self.min_amplitude_sign = False
+    #         self.max_amplitude_sign = False
+    #
+    #     if self.duration > duration:
+    #         self.max_amplitude = 0
+    #         self.duration = 0
+    #         self.distance_diff_record = [0]
+    #         self.min_amplitude_sign = False
+    #         self.max_amplitude_sign = False
+    #
+    #     return {'max_amplitude': self.max_amplitude}
+    def find_max_amplitude(self, distance_diff, dt, duration):
+        if distance_diff != self.distance_diff_record[-1]:
+            self.distance_diff_record.append(distance_diff)
+            self.duration = 0
+        else:
+            self.duration += dt
         if len(self.distance_diff_record) > 1:
             ds = self.distance_diff_record[-1] - self.distance_diff_record[-2]
-            if distance_diff > 0 > ds / dt and not self.max_amplitude_sign:
-                max_amplitude = self.distance_diff_record[-2]
-                self.distance_diff_record = []
-                self.max_amplitude_sign = True
-                self.min_amplitude_sign = False
-                return {'max_amplitude': max_amplitude, 'min_amplitude': None}
-            elif distance_diff < 0 < ds / dt and not self.min_amplitude_sign:
-                max_amplitude = self.distance_diff_record[-2]
-                self.distance_diff_record = []
-                self.min_amplitude_sign = True
-                self.max_amplitude_sign = False
-                return {'max_amplitude': None, 'min_amplitude': max_amplitude}
-        return {'max_amplitude': None, 'min_amplitude': None}
+            if (distance_diff > 0 > ds) or (distance_diff < 0 < ds):
+                self.max_amplitude = self.distance_diff_record[-2]
+                self.distance_diff_record = [0]
+        else:
+            self.max_amplitude = 0
+            self.duration = 0
+
+        if self.duration > duration:
+            self.max_amplitude = 0
+            self.duration = 0
+            self.distance_diff_record = [0]
+
+        return {'max_amplitude': self.max_amplitude}

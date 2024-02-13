@@ -1,120 +1,58 @@
-# import sys
-# import time
-#
-# import numpy as np
-# import pyqtgraph as pg
-# from PyQt5.QtCore import QTimer
-# from PyQt5.QtWidgets import QApplication, QMainWindow
-#
-# integral = 0
-# prev_error = 0
-# Kp = 1.0
-# Ki = 0.1
-# Kd = 0.1
-#
-#
-# def points_visual():
-#     global t
-#     global y6
-#     global x6
-#     dt = time.time() - t
-#     x6 += dt
-#     plot_widget.plot( pen=None, symbol='+', symbolPen=None, symbolSize=5, symbolBrush=(255, 255, 255, 255))
-#     t = time.time()
-#
-#
-#
-#
-#
-#
-# # 创建 Qt 应用程序
-# app = QApplication(sys.argv)
-#
-# # 创建主窗口
-# main_window = QMainWindow()
-#
-# # 创建 PyQtGraph 画布
-# plot_widget = pg.PlotWidget()
-# main_window.setCentralWidget(plot_widget)
-# t = time.time()
-# # 绘制点图
-# timer = QTimer()
-# timer.timeout.connect(points_visual)
-# timer.start(50)
-#
-# # 显示主窗口
-# main_window.show()
-#
-# # 运行 Qt 应用程序
-# sys.exit(app.exec_())
-#
-#
-# class MyClass:
-#     def __init__(self, instance_attr):
-#         self.instance_attr = instance_attr
-#
-#     def update_class_attr(self):
-#         new_value = self.instance_attr + 1
-#
-# a = 0
-#
-# # 实例化对象
-# obj1 = MyClass(a)
-# while True:
-#     a += 1
-#     obj1.update_class_attr()
+def speed_with_ramp(self, **kwargs) -> float:
+    """
+    Calculate the speed control for the next cycle considering ramp-up and ramp-down.
 
+    Args:
+        v_now: Current speed input.
+        v_cmd: Speed command.
+        dt: Time of speed input.
+        pid_offset: PID offset (predict point - reference point, (-) hb at front (+) hb at back).
+        ramp_up_time: Drive up ramp.
+        ramp_down_time: Drive down ramp.
+        max_spd_per: Percentage 0.0 - 1.0.
 
-import matplotlib.pyplot as plt
-import numpy as np
-speed_interior = 0
-# 定义函数
-def speed_adjustment(v_cmd, ramp_up, ramp_down, dt):
-    global speed_interior
+    Returns:
+        Speed percentage control for the next cycle.
+    """
+    v_now = kwargs.get('v_now', 0.0)
+    v_cmd = kwargs.get('v_cmd', 0.0)
+    ramp_up_time = kwargs.get('ramp_up_time', 6.0)
+    ramp_down_time = kwargs.get('ramp_down_time', 6.0)
+    max_spd_per = kwargs.get('max_spd_per', 0.9)
+    pid_offset = kwargs.get('pid_offset', 0)
+    dt = kwargs.get('dt', 0) * 2
+
+    ramp_up = 100 * max_spd_per / ramp_up_time
+    ramp_down = -100 * max_spd_per / ramp_down_time
+
     if v_cmd >= 0:
-        if v_cmd > speed_interior:
-            if speed_interior < 0:
-                speed_interior -= ramp_down * dt
-            else:
-                speed_interior += ramp_up * dt
-        elif int(v_cmd) == int(speed_interior):
-            speed_interior = v_cmd
-        else:
-            speed_interior += ramp_down * dt
+        ramp = ramp_up if v_cmd > self.speed_interior else ramp_down
     else:
-        if speed_interior > v_cmd:
-            if speed_interior > 0:
-                speed_interior += ramp_down * dt
-            else:
-                speed_interior -= ramp_up * dt
-        elif int(speed_interior) == int(v_cmd):
-            speed_interior = v_cmd
-        else:
-            speed_interior -= ramp_down * dt
+        ramp = ramp_down if v_cmd < self.speed_interior else ramp_up
 
-    return speed_interior
+    if v_cmd != self.speed_interior or (v_cmd == 0 and self.speed_interior == 0):
+        self.speed_interior += ramp * dt
 
-# 参数设定
-ramp_up = 100/6
-ramp_down = -100/6
-dt = 0.1
+    if int(self.speed_interior) == 0:
+        self.set_spd = [0]
+        self.smooth_spd = [0]
 
-# 初始化速度列表
-speeds = []
+    if dt == 0:
+        speed_out = self.speed_interior
+        self.set_spd = [0]
+    else:
+        speed_offset = (pid_offset / dt) / (180 / 60)
+        self.set_spd.append(self.speed_interior + speed_offset)
+        self.smooth_spd = self.moving_average(self.set_spd, 10)
+        max_spd_offset = self.speed_interior + (100 / ramp_up_time * dt)
+        min_spd_offset = self.speed_interior - (100 / ramp_down_time * dt)
+        speed_out = max(min_spd_offset, min(max_spd_offset, self.smooth_spd[-1]))
 
-# 初始化v_cmd列表
-v_cmd_values = np.linspace(0, 100, 100)
+    if v_cmd > 0:
+        cntr_spd = max(0, speed_out)
+    elif v_cmd < 0:
+        cntr_spd = min(0, speed_out)
+    else:
+        cntr_spd = speed_out
 
-# 循环执行speed_adjustment函数
-for v_cmd in v_cmd_values:
-    speed = speed_adjustment(-100,  ramp_up, ramp_down, dt)
-    speeds.append(speed)
-
-# 绘图
-plt.plot(v_cmd_values, speeds)
-plt.xlabel('v_cmd')
-plt.ylabel('self.speed_interior')
-plt.title('Speed Adjustment Function')
-plt.grid(True)
-plt.show()
-
+    return cntr_spd

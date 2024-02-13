@@ -18,14 +18,14 @@ shared_data = {}
 is_running = False
 points = {}
 data1_1, data1_2, data1_3, data2_1, data2_2, data2_3 = [], [], [], [], [], []
-
+max_amplitude = 0
+min_amplitude = 0
 
 # region sub process, main logic, queue put all info for ui
 def process_frames(q_put, share_list):
+    global max_amplitude, min_amplitude
     url = 'rtsp://admin:hhmc123456@192.168.16.64/Streaming/Channels/2'
     camera = Camera(url)
-    integral, prev_error = 0, 0
-
     sc_control = sc_process.Process()
 
     with open('./config.json', 'r') as cfg:
@@ -42,12 +42,9 @@ def process_frames(q_put, share_list):
     combined_list = [[x, y] for x, y in zip(center_height, center_point)]
     transformed_list = [[i[0]] + i[1] for i in combined_list]
     combined_np = np.array(transformed_list)
-    as_activate = False
-    as_require = False
-    trolley_spd_cmd = 0
 
     while True:
-        t_ = time.time()
+        t = time.time()
         frame = camera.get_frame()
         hoist_height = share_list[5]
         index_np = np.where(combined_np[:, 0] > hoist_height)[0]
@@ -69,8 +66,7 @@ def process_frames(q_put, share_list):
                 trolley_position = share_list[6]
                 distance_diff = (hb_center_act[1] - hb_center_set[1]) * distance_scale
 
-                dt = time.time() - t_
-                # hb_spd = trolley_spd_act - distance_diff /
+                dt = time.time() - t
                 Kp = share_list[0]
                 Ki = share_list[1]
                 Kd = share_list[2]
@@ -82,14 +78,26 @@ def process_frames(q_put, share_list):
 
                 args = {'v_now': trolley_spd_act, 'v_cmd': trolley_spd_set,
                         'pid_offset': pid_offset, 'dt': dt,
-                        'ramp_up_time': 6, 'ramp_down_time': 6, 'max_spd_per': 1}
+                        'ramp_up_time': 6, 'ramp_down_time': 6, 'max_spd_per': 0.9}
                 trolley_spd_cmd = sc_control.speed_with_ramp(**args)
+                duration = sc_control.pendulum_model_duration(hoist_height)
+                duration = duration / 4
+                sway = sc_control.find_max_amplitude(distance_diff, dt, duration)
+                # if sway['max_amplitude'] is not None:
+                #     max_amplitude = sway['max_amplitude']
+                # if sway['min_amplitude'] is not None:
+                #     min_amplitude = sway['min_amplitude']
+                print("\ramplitude：",sway, end='')
 
-                if abs(trolley_spd_act) == 0 and distance_diff < 0.5:
+                # print("\ramplitude：{:.2f} {:.2f}".format(max_amplitude, min_amplitude), end='')
+                # if ((max_amplitude is not None and max_amplitude < 1.0) or
+                #     (min_amplitude is not None and min_amplitude > -1.0)) and \
+                #         abs(trolley_spd_act) <= 2 and trolley_spd_set == 0:
+
+                if abs(trolley_spd_act) <= 2 and trolley_spd_set == 0 and False:
                     as_require = 0.0
                 else:
                     as_require = 1.0
-                # print(time.time() - t_)
                 share_list[9] = as_require
                 share_list[10] = trolley_spd_cmd
                 q_dict = {'hoist_height': hoist_height, 'img': img, 'xyxy': xyxy[0], 'center_set': hb_center_set,
@@ -99,7 +107,7 @@ def process_frames(q_put, share_list):
                           'setpoint': pid_offset}
 
                 q_put.put(q_dict)
-                # print(time.time() - t_)
+                # print(time.time() - t)
 
 
 # endregion
@@ -265,12 +273,9 @@ if __name__ == '__main__':
     timer_update_ui.start()
 
     timer = QTimer()
-    timer.setInterval(50)
+    timer.setInterval(20)
     timer.timeout.connect(update_trend)
     timer.start()
-    # trend1_update_thread = threading.Thread(target=update_trend, args=(main_window,))
-    # trend1_update_thread.daemon = True
-    # trend1_update_thread.start()
 
     # Execute the application event loop
     sys.exit(app.exec_())
