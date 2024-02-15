@@ -20,13 +20,15 @@ points = {}
 data1_1, data1_2, data1_3, data2_1, data2_2, data2_3 = [], [], [], [], [], []
 max_amplitude = 0
 min_amplitude = 0
+sc_done = False
+
 
 # region sub process, main logic, queue put all info for ui
 def process_frames(q_put, share_list):
-    global max_amplitude, min_amplitude
+    global max_amplitude, min_amplitude, sc_done
     url = 'rtsp://admin:hhmc123456@192.168.16.64/Streaming/Channels/2'
     camera = Camera(url)
-    sc_control = sc_process.Process()
+    sc_control = sc_process.SC_Process()
 
     with open('./config.json', 'r') as cfg:
         cfg_dit = json.load(cfg)
@@ -75,29 +77,45 @@ def process_frames(q_put, share_list):
 
                 sc_control.set_pid_constants(Kp, Ki, Kd)
                 pid_offset = sc_control.pid(distance_diff, dt)
-
-                args = {'v_now': trolley_spd_act, 'v_cmd': trolley_spd_set,
-                        'pid_offset': pid_offset, 'dt': dt,
-                        'ramp_up_time': 6, 'ramp_down_time': 6, 'max_spd_per': 0.9}
-                trolley_spd_cmd = sc_control.speed_with_ramp(**args)
-                duration = sc_control.pendulum_model_duration(hoist_height)
+                duration = sc_control.pendulum_model_duration(35 - hoist_height / 1000)
                 duration = duration / 4
                 sway = sc_control.find_max_amplitude(distance_diff, dt, duration)
-                # if sway['max_amplitude'] is not None:
-                #     max_amplitude = sway['max_amplitude']
-                # if sway['min_amplitude'] is not None:
-                #     min_amplitude = sway['min_amplitude']
-                print("\ramplitude：",sway, end='')
+                # print("\ramplitude：",sway, round(duration, 2), end='')
 
-                # print("\ramplitude：{:.2f} {:.2f}".format(max_amplitude, min_amplitude), end='')
-                # if ((max_amplitude is not None and max_amplitude < 1.0) or
-                #     (min_amplitude is not None and min_amplitude > -1.0)) and \
-                #         abs(trolley_spd_act) <= 2 and trolley_spd_set == 0:
+                s_offset_calculate = sc_control.calculate_swing_amplitude((35 - hoist_height / 1000), (180 / 60), 9.8)
 
-                if abs(trolley_spd_act) <= 2 and trolley_spd_set == 0 and False:
-                    as_require = 0.0
+                s_offset = abs(s_offset_calculate) + abs(sway['max_amplitude'])
+                if trolley_spd_act >= 0:
+                    target = 63000
+                    speed_limit = sc_control.speed_limit(target, trolley_position, trolley_spd_act, s_offset)
+                    if speed_limit is not None:
+                        v_cmd = min(trolley_spd_set, speed_limit)
+                    else:
+                        v_cmd = trolley_spd_set
                 else:
+                    target = 5000
+                    speed_limit = sc_control.speed_limit(target, trolley_position, trolley_spd_act, s_offset)
+                    if speed_limit is not None:
+                        v_cmd = max(trolley_spd_set, speed_limit)
+                    else:
+                        v_cmd = trolley_spd_set
+
+                args = {'v_now': trolley_spd_act, 'v_cmd': v_cmd,
+                        'pid_offset': pid_offset, 'dt': dt, 'trolley_position': trolley_position,
+                        'ramp_up_time': 6, 'ramp_down_time': 6, 'max_spd_per': 0.9}
+                trolley_spd_cmd = sc_control.speed_with_ramp(**args)
+
+                if sway['max_amplitude'] == 0 and \
+                        abs(trolley_spd_act) <= 2 and \
+                        trolley_spd_set == 0 and not sc_done:
+                    as_require = 0.0
+                    sc_done = True
+                elif trolley_spd_set != 0 and sc_done:
                     as_require = 1.0
+                    sc_done = False
+
+
+
                 share_list[9] = as_require
                 share_list[10] = trolley_spd_cmd
                 q_dict = {'hoist_height': hoist_height, 'img': img, 'xyxy': xyxy[0], 'center_set': hb_center_set,

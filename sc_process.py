@@ -13,9 +13,13 @@ import numpy as np
 #     return wrapper
 
 
-class Process:
+class SC_Process:
     def __init__(self, Kp=1.0, Ki=0.1, Kd=0.1):
 
+        self.ramp_down = 1
+        self.ramp_up = None
+        self.min_amplitude_sign = False
+        self.max_amplitude_sign = False
         self.duration = 0
         self.max_amplitude = 0
         try:
@@ -68,30 +72,31 @@ class Process:
         max_spd_per = kwargs.get('max_spd_per', 0.9)
         pid_offset = kwargs.get('pid_offset', 0)
         dt = kwargs.get('dt', 0)
+        trolley_position = kwargs.get('trolley_position', 0)
 
-        ramp_up = 100 * max_spd_per / ramp_up_time
-        ramp_down = -100 * max_spd_per / ramp_down_time
+        self.ramp_up = 100 * max_spd_per / ramp_up_time
+        self.ramp_down = -100 * max_spd_per / ramp_down_time
 
         if v_cmd >= 0:
             if v_cmd > self.speed_interior:
                 if self.speed_interior < 0:
-                    self.speed_interior -= ramp_down * dt
+                    self.speed_interior -= self.ramp_down * dt
                 else:
-                    self.speed_interior += ramp_up * dt
+                    self.speed_interior += self.ramp_up * dt
             elif int(v_cmd) == int(self.speed_interior) and (int(v_cmd) != 0 or int(self.speed_interior) == 0):
                 self.speed_interior = v_cmd
             else:
-                self.speed_interior += ramp_down * dt
+                self.speed_interior += self.ramp_down * dt
         else:
             if self.speed_interior > v_cmd:
                 if self.speed_interior > 0:
-                    self.speed_interior += ramp_down * dt
+                    self.speed_interior += self.ramp_down * dt
                 else:
-                    self.speed_interior -= ramp_up * dt
+                    self.speed_interior -= self.ramp_up * dt
             elif int(self.speed_interior) == int(v_cmd) and (int(v_cmd) != 0 or int(self.speed_interior) == 0):
                 self.speed_interior = v_cmd
             else:
-                self.speed_interior -= ramp_down * dt
+                self.speed_interior -= self.ramp_down * dt
         #  斜坡后达到控制速度
 
         if len(self.set_spd) > 100:
@@ -115,6 +120,7 @@ class Process:
                 #  限制pid后在基本速度上调整下周期速度变化量????只变一次
             else:
                 speed_out = self.speed_interior
+
         if v_cmd > 0:
             cntr_spd = max(0, speed_out)
         elif v_cmd < 0:
@@ -194,57 +200,87 @@ class Process:
         closest_value = array[closest_index]
         return closest_index, closest_value
 
-    # def find_max_amplitude(self, distance_diff, dt, duration):
-    #     if distance_diff != self.distance_diff_record[-1]:
-    #         self.distance_diff_record.append(distance_diff)
-    #         self.duration = 0
-    #     else:
-    #         self.duration += dt
-    #     if len(self.distance_diff_record) > 1:
-    #         ds = self.distance_diff_record[-1] - self.distance_diff_record[-2]
-    #         if distance_diff > 0 > ds / dt and not self.max_amplitude_sign:
-    #             self.max_amplitude = self.distance_diff_record[-2]
-    #             self.distance_diff_record = [0]
-    #             self.max_amplitude_sign = True
-    #             self.min_amplitude_sign = False
-    #         elif distance_diff < 0 < ds / dt and not self.min_amplitude_sign:
-    #             self.max_amplitude = self.distance_diff_record[-2]
-    #             self.distance_diff_record = [0]
-    #             self.min_amplitude_sign = True
-    #             self.max_amplitude_sign = False
-    #     else:
-    #         self.max_amplitude = 0
-    #         self.duration = 0
-    #         self.distance_diff_record = [0]
-    #         self.min_amplitude_sign = False
-    #         self.max_amplitude_sign = False
-    #
-    #     if self.duration > duration:
-    #         self.max_amplitude = 0
-    #         self.duration = 0
-    #         self.distance_diff_record = [0]
-    #         self.min_amplitude_sign = False
-    #         self.max_amplitude_sign = False
-    #
-    #     return {'max_amplitude': self.max_amplitude}
     def find_max_amplitude(self, distance_diff, dt, duration):
-        if distance_diff != self.distance_diff_record[-1]:
+        if abs(distance_diff - self.distance_diff_record[-1]) > 0.05:  # 防摇结束灵敏度
             self.distance_diff_record.append(distance_diff)
             self.duration = 0
         else:
             self.duration += dt
         if len(self.distance_diff_record) > 1:
             ds = self.distance_diff_record[-1] - self.distance_diff_record[-2]
-            if (distance_diff > 0 > ds) or (distance_diff < 0 < ds):
+            if distance_diff > 0 > ds / dt and not self.max_amplitude_sign:
                 self.max_amplitude = self.distance_diff_record[-2]
                 self.distance_diff_record = [0]
+                self.max_amplitude_sign = True
+                self.min_amplitude_sign = False
+            elif distance_diff < 0 < ds / dt and not self.min_amplitude_sign:
+                self.max_amplitude = self.distance_diff_record[-2]
+                self.distance_diff_record = [0]
+                self.min_amplitude_sign = True
+                self.max_amplitude_sign = False
         else:
             self.max_amplitude = 0
             self.duration = 0
+            self.distance_diff_record = [0]
+            self.min_amplitude_sign = False
+            self.max_amplitude_sign = False
 
         if self.duration > duration:
             self.max_amplitude = 0
             self.duration = 0
             self.distance_diff_record = [0]
+            self.min_amplitude_sign = False
+            self.max_amplitude_sign = False
 
         return {'max_amplitude': self.max_amplitude}
+
+    def speed_limit(self, target_trolley, act_trolley, trolley_spd_act, s_offset):
+        t_dec = abs(100 / self.ramp_down)
+        # t_dec = 6
+        s = 0.5 * ((180 / 60) / t_dec) * t_dec * t_dec  # 100% / 1/2att
+        k = 100 / (s + s_offset)
+
+        if trolley_spd_act > 0:
+            if target_trolley >= act_trolley:
+                trolley_spd_limit = ((target_trolley - act_trolley) / 1000) * k
+                trolley_spd_limit = min(100, max(10, trolley_spd_limit))
+            else:
+                trolley_spd_limit = 0
+        elif trolley_spd_act < 0:
+            if target_trolley <= act_trolley:
+                trolley_spd_limit = ((target_trolley - act_trolley) / 1000) * k
+                trolley_spd_limit = max(-100, min(-10, trolley_spd_limit))
+            else:
+                trolley_spd_limit = 0
+        else:
+            trolley_spd_limit = None
+
+        # print(s, s_offset, trolley_spd_limit)
+        return trolley_spd_limit
+
+    @staticmethod
+    def calculate_swing_amplitude(L, v0, g):
+        # 计算最大振幅
+        h = v0 ** 2 / (2 * g)
+        a = np.sqrt(L**2 - (L-h)**2)
+        return a
+
+    def position_control(self, trolley_position, target_position, dt):
+        error = target_position - trolley_position  # 当前误差
+        self.integral_position += error * dt  # 累积误差
+
+        # 计算PID控制器的输出
+        output = self.Kp_position * error + self.Ki_position * self.integral_position + self.Kd_position * (error - self.prev_error_position) / dt
+
+        # 限制输出变化量
+        output_change = output - self.prev_output_position
+        if abs(output_change) > self.max_output_change:
+            output = self.prev_output_position + np.sign(output_change) * self.max_output_change
+
+        # 保存当前输出作为下一次的前一次输出
+        self.prev_output_position = output
+
+        # 保存当前误差作为下一次的前一次误差
+        self.prev_error_position = error
+
+        return output

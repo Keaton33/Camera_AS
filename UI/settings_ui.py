@@ -118,7 +118,7 @@ class Ui_SettingWindow(object):
         SettingWindow.setWindowTitle(_translate("SettingWindow", "Dialog"))
         self.label_12.setText(_translate("SettingWindow", "HB Dimension Vertical:"))
         self.pushButton_configure.setText(_translate("SettingWindow", "Configure"))
-        self.lineEdit_Kp.setText(_translate("SettingWindow", "5.5"))
+        self.lineEdit_Kp.setText(_translate("SettingWindow", "1.5"))
         self.lineEdit_Ki.setText(_translate("SettingWindow", "0.001"))
         self.lineEdit_Kd.setText(_translate("SettingWindow", "0.01"))
         self.label_9.setText(_translate("SettingWindow", "Trolley Max Speed:"))
