@@ -47,7 +47,6 @@ class MainWindow(QMainWindow):
         self.trend_curve1_2.setData(data2)
         self.trend_curve1_3.setData(data3)
 
-
     def show_chart2(self, data1, data2, data3):
         self.trend_curve2_1.setData(data1)
         self.trend_curve2_2.setData(data2)

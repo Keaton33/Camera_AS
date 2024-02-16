@@ -1,6 +1,9 @@
 import json
+import time
 
 import numpy as np
+
+from camera import Camera
 
 
 # def calculate_error_and_dt(func):
@@ -14,9 +17,10 @@ import numpy as np
 
 
 class SC_Process:
-    def __init__(self, Kp=1.0, Ki=0.1, Kd=0.1):
+    def __init__(self):
 
-        self.ramp_down = 1
+        self.sc_done = False
+        self.ramp_down = 100
         self.ramp_up = None
         self.min_amplitude_sign = False
         self.max_amplitude_sign = False
@@ -24,9 +28,39 @@ class SC_Process:
         self.max_amplitude = 0
         try:
             with open('./config.json', 'r') as cfg:
-                dic_cfg = json.load(cfg)
-                self.hb_hor_dimension = dic_cfg['headblock_dimension']['hb_horizontal']
-                self.hb_ver_dimension = dic_cfg['headblock_dimension']['hb_vertical']
+                cfg_dit = json.load(cfg)
+                ref_center = cfg_dit['process']['points']
+                self.start_height = cfg_dit['process']['point_start'][0]
+                self.start_xyxy = cfg_dit['process']['point_start'][1]
+                self.stop_height = cfg_dit['process']['point_stop'][0]
+                self.stop_xyxy = cfg_dit['process']['point_stop'][1]
+                self.hb_hor_dimension = cfg_dit['crane_data']['headblock_dimension']['hb_horizontal']
+                self.hb_ver_dimension = cfg_dit['crane_data']['headblock_dimension']['hb_vertical']
+                self.boom_end_pos = cfg_dit['crane_data']['trolley_position']['boom_end']
+                self.ss_sillbeam_pos = cfg_dit['crane_data']['trolley_position']['ss_sillbeam']
+                self.sl_sillbeam_pos = cfg_dit['crane_data']['trolley_position']['sl_sillbeam']
+                self.ls_sillbeam_pos = cfg_dit['crane_data']['trolley_position']['ls_sillbeam']
+                self.ll_sillbeam_pos = cfg_dit['crane_data']['trolley_position']['ll_sillbeam']
+                self.backreach_end_pos = cfg_dit['crane_data']['trolley_position']['backreach_end']
+                self.up_end_height = cfg_dit['crane_data']['hoist_position']['up_end']
+                self.s_sillbeam_height = cfg_dit['crane_data']['hoist_position']['s_sillbeam']
+                self.l_sillbeam_height = cfg_dit['crane_data']['hoist_position']['l_sillbeam']
+                self.l_down_end_height = cfg_dit['crane_data']['hoist_position']['land_down_end']
+                self.s_down_end_height = cfg_dit['crane_data']['hoist_position']['sea_down_end']
+                self.trolley_max_spd = cfg_dit['crane_data']['trolley_speed']['max_speed']
+                self.trolley_acc_time = cfg_dit['crane_data']['trolley_speed']['acc_time']
+                self.trolley_dec_time = cfg_dit['crane_data']['trolley_speed']['dec_time']
+                self.hoist_max_spd = cfg_dit['crane_data']['hoist_speed']['max_speed']
+                self.hoist_acc_time = cfg_dit['crane_data']['hoist_speed']['acc_time']
+                self.hoist_dec_time = cfg_dit['crane_data']['hoist_speed']['dec_time']
+                self.pendulum_max = cfg_dit['crane_data']['trolley_height']
+
+                center_height = list(map(int, list(ref_center.keys())))
+                center_point = list(ref_center.values())
+                combined_list = [[x, y] for x, y in zip(center_height, center_point)]
+                transformed_list = [[i[0]] + i[1] for i in combined_list]
+                self.combined_np = np.array(transformed_list)
+
         except FileNotFoundError:
             print("Config file not found.")
             # 如果文件不存在，则可以提供默认值或者抛出异常进行处理
@@ -37,9 +71,115 @@ class SC_Process:
         self.set_spd = [0]
         self.smooth_spd = [0]
         self.distance_diff_record = [0]
-        self.Kp = Kp
-        self.Ki = Ki
-        self.Kd = Kd
+        self.Kp = 1.0
+        self.Ki = 0.001
+        self.Kd = 0.001
+        url = 'rtsp://admin:hhmc123456@192.168.16.64/Streaming/Channels/2'
+        self.camera = Camera(url)
+
+    def sc_main(self, q_put, share_list):
+        while True:
+            t = time.time()
+            Kp = share_list[0]
+            Ki = share_list[1]
+            Kd = share_list[2]
+            hoist_height = share_list[5]
+            trolley_position = share_list[6]
+            trolley_spd_set = share_list[7]
+            trolley_spd_act = share_list[8]
+            share_list[3] = self.integral
+            share_list[4] = self.prev_error
+            distance_scale, hb_center_set = self.get_hb_center(hoist_height)
+
+            frame = self.camera.get_frame()
+
+            if frame is not None:
+                img, xyxy = self.camera.process_frame(frame, hb_center_set)
+                if len(xyxy) > 0:
+                    hb_center_act = [int((xyxy[0][2] + xyxy[0][0]) / 2), int((xyxy[0][3] + xyxy[0][1]) / 2)]
+
+                    distance_diff = (hb_center_act[1] - hb_center_set[1]) * distance_scale
+
+                    dt = time.time() - t
+
+                    self.set_pid_constants(Kp, Ki, Kd)
+                    pid_offset = self.pid(distance_diff, dt)
+                    duration = self.pendulum_model_duration(self.pendulum_max - hoist_height / 1000)
+                    duration = duration / 4
+                    sway = self.find_max_amplitude(distance_diff, dt, duration)
+                    print("\ramplitude：",sway, round(duration, 2), end='')
+
+                    s_offset_calculate = self.calculate_swing_amplitude((self.pendulum_max - hoist_height / 1000),
+                                                                        self.trolley_max_spd)
+
+                    s_offset = abs(s_offset_calculate) + abs(sway['max_amplitude'])
+                    # !!!!!!!Should consider Kp value, the speed adjust rapidly with high Kp
+
+                    v_cmd = self.speed_limit_by_target(s_offset, trolley_position, trolley_spd_act, trolley_spd_set)
+
+                    args = {'v_now': trolley_spd_act, 'v_cmd': v_cmd, 'pid_offset': pid_offset,
+                            'dt': dt, 'trolley_position': trolley_position, 'ramp_up_time': self.trolley_acc_time,
+                            'ramp_down_time': self.trolley_acc_time, 'max_spd_per': 0.9}
+                    trolley_spd_cmd = self.speed_with_ramp(**args)
+
+                    as_require = self.sway_control_done(sway, trolley_spd_act, trolley_spd_set)
+
+                    share_list[9] = as_require
+                    share_list[10] = trolley_spd_cmd
+                    q_dict = {'hoist_height': hoist_height, 'img': img, 'xyxy': xyxy[0], 'center_set': hb_center_set,
+                              'center_act': hb_center_act, 'trolley_spd_set': trolley_spd_set, 'as_require': as_require,
+                              'trolley_spd_act': trolley_spd_act, 'distance_diff': distance_diff,
+                              'trolley_position': trolley_position, 'trolley_spd_cmd': trolley_spd_cmd,
+                              'setpoint': pid_offset}
+
+                    q_put.put(q_dict)
+
+    def sway_control_done(self, sway, trolley_spd_act, trolley_spd_set):
+        if trolley_spd_set != 0:
+            self.sc_done = False
+            as_require = 1.0
+        else:
+            if sway['max_amplitude'] != 0 and not self.sc_done:
+                self.sc_done = False
+                as_require = 1.0
+            else:
+                if abs(trolley_spd_act) < 2:
+                    self.sc_done = True
+                    as_require = 0.0
+                else:
+                    self.sc_done = False
+                    as_require = 1.0
+
+        return as_require
+
+    def speed_limit_by_target(self, s_offset, trolley_position, trolley_spd_act, trolley_spd_set):
+        if trolley_spd_act >= 0:
+            target = 60000
+            speed_limit = self.speed_limit(target, trolley_position, trolley_spd_act, s_offset)
+            if speed_limit is not None:
+                v_cmd = min(trolley_spd_set, speed_limit)
+            else:
+                v_cmd = trolley_spd_set
+        else:
+            target = 10000
+            speed_limit = self.speed_limit(target, trolley_position, trolley_spd_act, s_offset)
+            if speed_limit is not None:
+                v_cmd = max(trolley_spd_set, speed_limit)
+            else:
+                v_cmd = trolley_spd_set
+        return v_cmd
+
+    def get_hb_center(self, hoist_height):
+        index_np = np.where(self.combined_np[:, 0] > hoist_height)[0]
+        if len(index_np) > 0:
+            result_np = self.combined_np[index_np[-1], 1:].tolist()
+            hb_center_set = [int((result_np[2] + result_np[0]) / 2), int((result_np[3] + result_np[1]) / 2)]
+            distance_scale = (self.hb_hor_dimension / (result_np[2] - result_np[0]) + self.hb_ver_dimension / (
+                    result_np[3] - result_np[1])) / 2
+        else:
+            hb_center_set = [0, 0]
+            distance_scale = 0
+        return distance_scale, hb_center_set
 
     def set_pid_constants(self, Kp, Ki, Kd):
         self.Kp = Kp
@@ -77,6 +217,20 @@ class SC_Process:
         self.ramp_up = 100 * max_spd_per / ramp_up_time
         self.ramp_down = -100 * max_spd_per / ramp_down_time
 
+        self.ramp_generator(dt, v_cmd)
+
+        if len(self.set_spd) > 100:
+            self.set_spd = self.set_spd[-100:]
+            self.smooth_spd = self.smooth_spd[-100:]
+        #  清空速度记录列表
+
+        speed_out = self.speed_adjust_smooth(dt, pid_offset, ramp_down_time, ramp_up_time)
+
+        cntr_spd = self.single_direction(speed_out, v_cmd)
+
+        return cntr_spd
+
+    def ramp_generator(self, dt, v_cmd):
         if v_cmd >= 0:
             if v_cmd > self.speed_interior:
                 if self.speed_interior < 0:
@@ -99,16 +253,12 @@ class SC_Process:
                 self.speed_interior -= self.ramp_down * dt
         #  斜坡后达到控制速度
 
-        if len(self.set_spd) > 100:
-            self.set_spd = self.set_spd[-100:]
-            self.smooth_spd = self.smooth_spd[-100:]
-        #  清空速度记录列表
-
+    def speed_adjust_smooth(self, dt, pid_offset, ramp_down_time, ramp_up_time):
         if dt == 0:
             speed_out = self.speed_interior
             self.set_spd = [0]
         else:
-            speed_offset = (pid_offset / dt) / (180 / 60)  # 要补偿调节量的速度
+            speed_offset = (pid_offset / dt) / self.trolley_max_spd  # 要补偿调节量的速度!!!!!!!!!!!!!!!!!!!!!!!!!100
             # print("\rspeed adjust： {:.2f}%".format(speed_offset), end='')
             self.set_spd.append(self.speed_interior + speed_offset)  # 基础速度 + 调节速度
             self.smooth_spd = self.moving_average(self.set_spd, 5)
@@ -120,7 +270,10 @@ class SC_Process:
                 #  限制pid后在基本速度上调整下周期速度变化量????只变一次
             else:
                 speed_out = self.speed_interior
+        return speed_out
 
+    @staticmethod
+    def single_direction(speed_out, v_cmd):
         if v_cmd > 0:
             cntr_spd = max(0, speed_out)
         elif v_cmd < 0:
@@ -128,7 +281,6 @@ class SC_Process:
         else:
             cntr_spd = speed_out
         # 限制最终输出速度, 向前时不可以-速度
-
         return cntr_spd
 
     @staticmethod
@@ -237,8 +389,8 @@ class SC_Process:
     def speed_limit(self, target_trolley, act_trolley, trolley_spd_act, s_offset):
         t_dec = abs(100 / self.ramp_down)
         # t_dec = 6
-        s = 0.5 * ((180 / 60) / t_dec) * t_dec * t_dec  # 100% / 1/2att
-        k = 100 / (s + s_offset)
+        s = 0.5 * (self.trolley_max_spd / t_dec) * t_dec * t_dec  # 100% / 1/2att
+        k = 100 / (s + s_offset)  #
 
         if trolley_spd_act > 0:
             if target_trolley >= act_trolley:
@@ -259,28 +411,8 @@ class SC_Process:
         return trolley_spd_limit
 
     @staticmethod
-    def calculate_swing_amplitude(L, v0, g):
+    def calculate_swing_amplitude(L, v0):
         # 计算最大振幅
-        h = v0 ** 2 / (2 * g)
-        a = np.sqrt(L**2 - (L-h)**2)
+        h = v0 ** 2 / (2 * 9.81)
+        a = np.sqrt(L ** 2 - (L - h) ** 2)
         return a
-
-    def position_control(self, trolley_position, target_position, dt):
-        error = target_position - trolley_position  # 当前误差
-        self.integral_position += error * dt  # 累积误差
-
-        # 计算PID控制器的输出
-        output = self.Kp_position * error + self.Ki_position * self.integral_position + self.Kd_position * (error - self.prev_error_position) / dt
-
-        # 限制输出变化量
-        output_change = output - self.prev_output_position
-        if abs(output_change) > self.max_output_change:
-            output = self.prev_output_position + np.sign(output_change) * self.max_output_change
-
-        # 保存当前输出作为下一次的前一次输出
-        self.prev_output_position = output
-
-        # 保存当前误差作为下一次的前一次误差
-        self.prev_error_position = error
-
-        return output
