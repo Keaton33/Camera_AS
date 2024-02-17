@@ -6,21 +6,11 @@ import numpy as np
 from camera import Camera
 
 
-# def calculate_error_and_dt(func):
-#     def wrapper(self, *args, **kwargs):
-#         distance = kwargs.get('distance', 0.0)
-#         t_previous = kwargs.get('t_previous', time.time())
-#         dt = time.time() - t_previous
-#         return func(self, distance, dt, *args, **kwargs)
-#
-#     return wrapper
-
-
 class SC_Process:
     def __init__(self):
 
+        self.ramp_down = None
         self.sc_done = False
-        self.ramp_down = 100
         self.ramp_up = None
         self.min_amplitude_sign = False
         self.max_amplitude_sign = False
@@ -107,7 +97,7 @@ class SC_Process:
                     duration = self.pendulum_model_duration(self.pendulum_max - hoist_height / 1000)
                     duration = duration / 4
                     sway = self.find_max_amplitude(distance_diff, dt, duration)
-                    print("\ramplitude：",sway, round(duration, 2), end='')
+                    print("\ramplitude：", sway, round(duration, 2), end='')
 
                     s_offset_calculate = self.calculate_swing_amplitude((self.pendulum_max - hoist_height / 1000),
                                                                         self.trolley_max_spd)
@@ -387,7 +377,10 @@ class SC_Process:
         return {'max_amplitude': self.max_amplitude}
 
     def speed_limit(self, target_trolley, act_trolley, trolley_spd_act, s_offset):
-        t_dec = abs(100 / self.ramp_down)
+        if self.ramp_down is None:
+            t_dec = self.trolley_dec_time
+        else:
+            t_dec = abs(100 / self.ramp_down)
         # t_dec = 6
         s = 0.5 * (self.trolley_max_spd / t_dec) * t_dec * t_dec  # 100% / 1/2att
         k = 100 / (s + s_offset)  #
@@ -395,13 +388,13 @@ class SC_Process:
         if trolley_spd_act > 0:
             if target_trolley >= act_trolley:
                 trolley_spd_limit = ((target_trolley - act_trolley) / 1000) * k
-                trolley_spd_limit = min(100, max(10, trolley_spd_limit))
+                trolley_spd_limit = min(100, max(0, trolley_spd_limit))
             else:
                 trolley_spd_limit = 0
         elif trolley_spd_act < 0:
             if target_trolley <= act_trolley:
                 trolley_spd_limit = ((target_trolley - act_trolley) / 1000) * k
-                trolley_spd_limit = max(-100, min(-10, trolley_spd_limit))
+                trolley_spd_limit = max(-100, min(-0, trolley_spd_limit))
             else:
                 trolley_spd_limit = 0
         else:
