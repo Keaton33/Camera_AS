@@ -11,6 +11,8 @@ def cleanup():
     if client.get_connected():
         set_trolley_cmd_spd(0)
         set_trolley_cmd_statue(0)
+        set_hoist_cmd_statue(0)
+        set_hoist_cmd_spd(0)
         client.disconnect()
         client.destroy()
 
@@ -67,3 +69,29 @@ def set_trolley_cmd_statue(cmd_statue):
     return client.db_write(30, 150, byte_arrays)
 
 
+def set_hoist_cmd_statue(cmd_statue):
+    byte_arrays = bytearray(struct.pack('>f', cmd_statue))
+    return client.db_write(21, 130, byte_arrays)
+
+
+def set_hoist_cmd_spd(cmd_spd):
+    byte_arrays = bytearray(struct.pack('>f', cmd_spd))
+    return client.db_write(21, 126, byte_arrays)
+
+
+def get_auto_start():
+    byte_arrays = client.db_read(21, 162, 4)
+    if byte_arrays:
+        value = snap7.util.get_real(byte_arrays, 0)
+        return value
+    else:
+        return 0
+
+
+def get_hoist_set_spd():
+    byte_arrays = client.db_read(21, 146, 4)
+    if byte_arrays:
+        value = snap7.util.get_real(byte_arrays, 0)
+        return value
+    else:
+        return 0

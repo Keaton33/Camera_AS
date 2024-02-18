@@ -5,12 +5,12 @@ import numpy as np
 
 class PC_Process:
     def __init__(self):
-        self.Kd_position = None
-        self.prev_output_position = None
-        self.prev_error_position = None
-        self.Ki_position = None
-        self.Kp_position = None
-        self.integral_position = None
+        self.Kp_position = 1.0
+        self.Ki_position = 0.001
+        self.Kd_position = 0.01
+        self.prev_output_position = 0
+        self.prev_error_position = 0
+        self.integral_position = 0
         self.preset_point = None
         self.profile = None
         with open('./config.json') as cfg:
@@ -28,21 +28,21 @@ class PC_Process:
         # 增加数据校验(数据连续、在行程内)
 
     def get_target(self):
-        self.preset_point = [[15, 16], [30, 16], [50, 9]]
+        self.preset_point = [[15, 16], [30, 16], [40, 12]]
         # 增加数据校验（按照向前或向后方向排序点、在行程内）
 
     def set_target(self, trolley_position, hoist_position):
-        target_next = None
         trolley_pos = trolley_position / 1000
         hoist_pos = hoist_position / 1000
+        target_next = [trolley_pos, hoist_pos]
 
         if self.profile[-1][2] >= self.preset_point[-1][0] >= self.profile[0][0]:  # 最终目标位置在轮廓内
-            if self.preset_point[-1][0] > trolley_pos:  # 向前
+            if self.preset_point[-1][0] > trolley_pos and self.preset_point[-1][0] > self.preset_point[0][0]:  # 向前
                 for i in self.preset_point:  # 找预设点
-                    if i[0] > trolley_pos:  # [15, 16], [30, 16], [50, 9]
+                    if i[0] > trolley_pos:  # [15, 16], [30, 16], [40, 12]
                         target_point = i
 
-                        target_trolley = target_point[0]
+                        target_trolley = self.preset_point[-1][0]  # 小车目标为最终位置
                         target_hoist = target_point[1]
 
                         indices = np.where(self.profile[:, 2] > trolley_pos)[0]
@@ -82,12 +82,14 @@ class PC_Process:
                             else:
                                 target_next = [profile_region_current_trolley, f_down_profile_max_height]
                         break
-            else:  # 向后
+
+            elif self.preset_point[-1][0] < trolley_pos and self.preset_point[-1][0] < self.preset_point[0][0]:  # 向后
                 for i in self.preset_point:
+
                     if i[0] < trolley_pos:  # [50, 9], [30, 16], [15, 16]
                         target_point = i
 
-                        target_trolley = target_point[0]
+                        target_trolley = self.preset_point[-1][0]
                         target_hoist = target_point[1]
 
                         indices = np.where(self.profile[:, 0] < trolley_pos)[0]
@@ -128,6 +130,8 @@ class PC_Process:
                             else:
                                 target_next = [profile_region_current_trolley, b_down_profile_max_height]
                         break
+            else:
+                target_next = [self.preset_point[-1][0], self.preset_point[-1][1]]
         else:
             target_next = [trolley_pos, self.up_end_height]
         return target_next
@@ -154,13 +158,14 @@ class PC_Process:
         else:
             hoist_motion = 1.0
 
-        if target_trolley > trolley_pos:
+        if (target_trolley - trolley_pos) > 1:
             trolley_spd_cmd = 100
+        elif abs(target_trolley - trolley_pos) <= 1:  # 距离小于1m时位置控制
+
+            trolley_spd_cmd = self.position_control(trolley_pos, target_trolley, dt=0.03)
         else:
             trolley_spd_cmd = -100
 
-        if abs(trolley_pos - target_trolley) < 0.5:
-            trolley_spd_cmd = self.position_control(trolley_pos, target_trolley, dt=0.04)
 
         return hoist_motion, hoist_spd_cmd, trolley_spd_cmd
 

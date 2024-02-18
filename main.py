@@ -1,10 +1,12 @@
 import multiprocessing
 import sys
+import time
 from multiprocessing import Process, Queue
 
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QApplication
 
+import pc_process
 import sc_process
 from UI import main_window, setting_window, alarm_window, comm_window
 import plc
@@ -16,9 +18,8 @@ data1_1, data1_2, data1_3, data2_1, data2_2, data2_3 = [], [], [], [], [], []
 # region 'main window' thread for queue get all info to global variable
 def update_ui(q_get):
     global shared_data
-
-    # while True:
-
+    if q_get.qsize() > 1:
+        q_get.get()
     shared_data = q_get.get()
 
     main_window.show_pix(shared_data['img'])
@@ -53,7 +54,7 @@ def update_trend():
 
         trolley_spd_set = shared_data['trolley_spd_cmd']
         trolley_spd_act = shared_data['trolley_spd_act']
-        trolley_spd_cmd = shared_data['setpoint']
+        trolley_spd_cmd = manager_list[12]
         data2_1.append(trolley_spd_set)
         data2_2.append(trolley_spd_act)
         data2_3.append(trolley_spd_cmd)
@@ -73,24 +74,59 @@ def update_trend():
     manager_list[6] = plc.get_trolley_position()
     manager_list[7] = plc.get_trolley_set_spd()
     manager_list[8] = plc.get_trolley_act_spd()
+    manager_list[13] = plc.get_auto_start()
     plc.set_trolley_cmd_statue(manager_list[9])
     plc.set_trolley_cmd_spd(manager_list[10])
+    plc.set_hoist_cmd_statue(manager_list[11])
+    plc.set_hoist_cmd_spd(manager_list[12])
+    manager_list[14] = plc.get_hoist_set_spd()
 
 
-def sc_main(q_put: Queue, manager_list: multiprocessing.Manager):
+def sc_main(q_put: Queue, manager_list_sc: multiprocessing.Manager):
     sway_control_process = sc_process.SC_Process()
+    trolley_spd_auto = 0
+    while True:
+        sway_control_process.sc_main(q_put, manager_list_sc, trolley_spd_auto)
 
-    sway_control_process.sc_main(q_put, manager_list)
+
+def pc_main(q_put: Queue, manager_list_pc: multiprocessing.Manager):
+    sway_control_process = sc_process.SC_Process()
+    position_control_process = pc_process.PC_Process()
+    position_control_process.get_profile()
+    position_control_process.get_target()
+    while True:
+        t = time.time()
+        hoist_height = manager_list_pc[5]
+        trolley_position = manager_list_pc[6]
+        trolley_spd_set = manager_list_pc[7]
+        trolley_spd_act = manager_list_pc[8]
+        hoist_spd_set = manager_list_pc[14]
+
+        target = position_control_process.set_target(trolley_position, hoist_height)
+        print("\rtarget：", target, [round(trolley_position / 1000, 2), round(hoist_height / 1000, 2)], end='')
+
+        if manager_list_pc[13] == 1.0:
+            hoist_motion, hoist_spd_auto, trolley_spd_auto = \
+                position_control_process.motion_control(target, trolley_position, hoist_height)
+        else:
+            hoist_motion = 0.0
+            hoist_spd_auto = hoist_spd_set
+            trolley_spd_auto = 0
+
+        sway_control_process.sc_main(q_put, manager_list_pc, trolley_spd_auto, target[0])
+
+        manager_list_pc[11] = hoist_motion
+        manager_list_pc[12] = hoist_spd_auto
+        # print(time.time() - t)
 
 
 if __name__ == '__main__':
     q = Queue()
     manager = multiprocessing.Manager()
-    manager_list = manager.list([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    manager_list = manager.list([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
     # Start the processor to process frames
-    # p1 = Process(target=sway_control_process.sc_main, args=(q, manager_list))
-    p1 = Process(target=sc_main, args=(q, manager_list))
+    p1 = Process(target=pc_main, args=(q, manager_list))
 
     p1.daemon = True
     p1.start()
