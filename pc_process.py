@@ -5,7 +5,7 @@ import numpy as np
 
 class PC_Process:
     def __init__(self):
-        self.Kp_position = 1.0
+        self.Kp_position = 10.0
         self.Ki_position = 0.001
         self.Kd_position = 0.01
         self.prev_output_position = 0
@@ -28,7 +28,8 @@ class PC_Process:
         # 增加数据校验(数据连续、在行程内)
 
     def get_target(self):
-        self.preset_point = [[15, 16], [30, 16], [40, 12]]
+        # self.preset_point = [[15, 16], [30, 16], [40, 12]]
+        self.preset_point = [[40, 16], [30, 16], [17.6, 14]]
         # 增加数据校验（按照向前或向后方向排序点、在行程内）
 
     def set_target(self, trolley_position, hoist_position):
@@ -152,7 +153,7 @@ class PC_Process:
         else:
             hoist_spd_cmd = max(-100, hoist_spd_limit)
 
-        if abs(hoist_pos - target_hoist) < 0.1:
+        if abs(hoist_pos - target_hoist) < 0.01:
             hoist_motion = 0.0
             hoist_spd_cmd = 0
         else:
@@ -163,9 +164,9 @@ class PC_Process:
         elif abs(target_trolley - trolley_pos) <= 1:  # 距离小于1m时位置控制
 
             trolley_spd_cmd = self.position_control(trolley_pos, target_trolley, dt=0.03)
+            # trolley_spd_cmd = 0
         else:
             trolley_spd_cmd = -100
-
 
         return hoist_motion, hoist_spd_cmd, trolley_spd_cmd
 

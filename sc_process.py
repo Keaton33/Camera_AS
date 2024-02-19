@@ -109,16 +109,20 @@ class SC_Process:
                 s_offset = abs(s_offset_calculate) + abs(sway['max_amplitude'])
                 # !!!!!!!Should consider Kp value, the speed adjust rapidly with high Kp
 
-                v_cmd = self.speed_limit_by_structure(s_offset, trolley_position, trolley_spd_act, trolley_spd_set)
+                v_cmd = self.speed_limit_by_structure(s_offset, (target_trolley*1000), trolley_position, trolley_spd_act, trolley_spd_set)
 
-                v_cmd = self.speed_limit((target_trolley*1000), trolley_position, trolley_spd_act, s_offset)
+                # v_cmd = self.speed_limit((target_trolley*1000), trolley_position, trolley_spd_act, s_offset)
 
                 args = {'v_now': trolley_spd_act, 'v_cmd': v_cmd, 'pid_offset': pid_offset,
                         'dt': dt, 'trolley_position': trolley_position, 'ramp_up_time': self.trolley_acc_time,
                         'ramp_down_time': self.trolley_acc_time, 'max_spd_per': 0.9}
                 trolley_spd_cmd = self.speed_with_ramp(**args)
 
-                as_require = self.sway_control_done(sway, trolley_spd_act, trolley_spd_set)
+                if abs((target_trolley*1000)- trolley_position) < 50:
+                    trolley_spd_cmd = 0
+
+
+                as_require = self.sway_control_done(sway, trolley_spd_act, trolley_spd_set,(target_trolley*1000), trolley_position)
                 if trolley_spd_auto == 0:
                     share_list[9] = as_require
                 else:
@@ -132,7 +136,7 @@ class SC_Process:
 
                 q_put.put(q_dict)
 
-    def sway_control_done(self, sway, trolley_spd_act, trolley_spd_set):
+    def sway_control_done(self, sway, trolley_spd_act, trolley_spd_set, target, trolley_act_pos):
         if trolley_spd_set != 0:
             self.sc_done = False
             as_require = 1.0
@@ -150,16 +154,16 @@ class SC_Process:
 
         return as_require
 
-    def speed_limit_by_structure(self, s_offset, trolley_position, trolley_spd_act, trolley_spd_set):
+    def speed_limit_by_structure(self, s_offset, target, trolley_position, trolley_spd_act, trolley_spd_set):
         if trolley_spd_act >= 0:
-            target = 60000
+            # target = 60000
             speed_limit = self.speed_limit(target, trolley_position, trolley_spd_act, s_offset)
             if speed_limit is not None:
                 v_cmd = min(trolley_spd_set, speed_limit)
             else:
                 v_cmd = trolley_spd_set
         else:
-            target = 10000
+            # target = 10000
             speed_limit = self.speed_limit(target, trolley_position, trolley_spd_act, s_offset)
             if speed_limit is not None:
                 v_cmd = max(trolley_spd_set, speed_limit)
@@ -226,7 +230,7 @@ class SC_Process:
 
         cntr_spd = self.single_direction(speed_out, v_cmd)
 
-        return cntr_spd
+        return speed_out
 
     def ramp_generator(self, dt, v_cmd):
         if v_cmd >= 0:

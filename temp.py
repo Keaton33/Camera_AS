@@ -1,58 +1,50 @@
-def speed_with_ramp(self, **kwargs) -> float:
-    """
-    Calculate the speed control for the next cycle considering ramp-up and ramp-down.
+import sys
+from PyQt5.QtCore import QPointF, QPoint
+from PyQt5.QtGui import QPainter, QPolygonF, QColor
+from PyQt5.QtWidgets import QApplication, QDialog, QGraphicsScene
+from UI import automation
 
-    Args:
-        v_now: Current speed input.
-        v_cmd: Speed command.
-        dt: Time of speed input.
-        pid_offset: PID offset (predict point - reference point, (-) hb at front (+) hb at back).
-        ramp_up_time: Drive up ramp.
-        ramp_down_time: Drive down ramp.
-        max_spd_per: Percentage 0.0 - 1.0.
 
-    Returns:
-        Speed percentage control for the next cycle.
-    """
-    v_now = kwargs.get('v_now', 0.0)
-    v_cmd = kwargs.get('v_cmd', 0.0)
-    ramp_up_time = kwargs.get('ramp_up_time', 6.0)
-    ramp_down_time = kwargs.get('ramp_down_time', 6.0)
-    max_spd_per = kwargs.get('max_spd_per', 0.9)
-    pid_offset = kwargs.get('pid_offset', 0)
-    dt = kwargs.get('dt', 0) * 2
+class PolygonWidget(QGraphicsScene):
+    def __init__(self):
+        super().__init__()
 
-    ramp_up = 100 * max_spd_per / ramp_up_time
-    ramp_down = -100 * max_spd_per / ramp_down_time
+    def drawPolygon(self):
+        # Define the points of the polygon as QPointF
+        # points = QPolygonF([
+        #     QPointF(50, 50),
+        #     QPointF(200, 50),
+        #     QPointF(200, 200),
+        #     QPointF(100, 100),
+        #     QPointF(50, 200)
+        # ])
+        points_list = [[-100, 50],[200, 50],[200, 200],[100, 100],[50, 200]]
+        polygon = QPolygonF()
 
-    if v_cmd >= 0:
-        ramp = ramp_up if v_cmd > self.speed_interior else ramp_down
-    else:
-        ramp = ramp_down if v_cmd < self.speed_interior else ramp_up
+        # 将坐标列表转换为 QPointF 对象，并添加到 QPolygonF 中
+        for i in points_list:
+            point = QPoint(i[0] , i[1])
+            polygon.append(point)
 
-    if v_cmd != self.speed_interior or (v_cmd == 0 and self.speed_interior == 0):
-        self.speed_interior += ramp * dt
+        # Set the color of the polygon
+        color = QColor(255, 0, 0)
+        self.addPolygon(polygon, color)
 
-    if int(self.speed_interior) == 0:
-        self.set_spd = [0]
-        self.smooth_spd = [0]
 
-    if dt == 0:
-        speed_out = self.speed_interior
-        self.set_spd = [0]
-    else:
-        speed_offset = (pid_offset / dt) / (180 / 60)
-        self.set_spd.append(self.speed_interior + speed_offset)
-        self.smooth_spd = self.moving_average(self.set_spd, 10)
-        max_spd_offset = self.speed_interior + (100 / ramp_up_time * dt)
-        min_spd_offset = self.speed_interior - (100 / ramp_down_time * dt)
-        speed_out = max(min_spd_offset, min(max_spd_offset, self.smooth_spd[-1]))
+class AutoWindow(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.ui = automation.Ui_Dialog()
+        self.ui.setupUi(self)
 
-    if v_cmd > 0:
-        cntr_spd = max(0, speed_out)
-    elif v_cmd < 0:
-        cntr_spd = min(0, speed_out)
-    else:
-        cntr_spd = speed_out
+        # Create a QGraphicsScene object and set its parent to the graphicsView
+        self.scene = PolygonWidget()
+        self.ui.graphicsView.setScene(self.scene)
+        self.scene.drawPolygon()
 
-    return cntr_spd
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    auto = AutoWindow()
+    auto.show()
+    sys.exit(app.exec_())

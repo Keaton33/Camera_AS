@@ -415,12 +415,12 @@ background-color: rgb(0, 0, 0);</string>
            <item row="0" column="0" colspan="2">
             <widget class="QLabel" name="label_7">
              <property name="text">
-              <string>HB Skew ACT</string>
+              <string>Trolley ACT/Target</string>
              </property>
             </widget>
            </item>
            <item row="1" column="0">
-            <widget class="QLabel" name="label_hbSkewAct">
+            <widget class="QLabel" name="label_trolley_act_pos">
              <property name="layoutDirection">
               <enum>Qt::LeftToRight</enum>
              </property>
@@ -428,14 +428,17 @@ background-color: rgb(0, 0, 0);</string>
               <string>8520</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignCenter</set>
              </property>
             </widget>
            </item>
            <item row="1" column="1">
-            <widget class="QLabel" name="label_9">
+            <widget class="QLabel" name="label_trolley_target_pos">
              <property name="text">
-              <string>°</string>
+              <string>825</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
              </property>
             </widget>
            </item>
@@ -453,12 +456,12 @@ background-color: rgb(0, 0, 0);</string>
            <item row="0" column="0" colspan="2">
             <widget class="QLabel" name="label_19">
              <property name="text">
-              <string>HB Skew SET</string>
+              <string>Hoist ACT/Target</string>
              </property>
             </widget>
            </item>
            <item row="1" column="0">
-            <widget class="QLabel" name="label_hbSkewSet">
+            <widget class="QLabel" name="label_hoist_act_pos">
              <property name="layoutDirection">
               <enum>Qt::LeftToRight</enum>
              </property>
@@ -466,14 +469,17 @@ background-color: rgb(0, 0, 0);</string>
               <string>8520</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignCenter</set>
              </property>
             </widget>
            </item>
            <item row="1" column="1">
-            <widget class="QLabel" name="label_21">
+            <widget class="QLabel" name="label_hoist_target_pos">
              <property name="text">
-              <string>°</string>
+              <string>852</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
              </property>
             </widget>
            </item>
@@ -548,6 +554,7 @@ background-color: rgb(0, 0, 0);</string>
     <property name="title">
      <string>Help</string>
     </property>
+    <addaction name="actionAuto"/>
    </widget>
    <addaction name="menuSettings"/>
    <addaction name="menuHelp"/>
@@ -566,6 +573,11 @@ background-color: rgb(0, 0, 0);</string>
   <action name="actionAlarm">
    <property name="text">
     <string>Alarm</string>
+   </property>
+  </action>
+  <action name="actionAuto">
+   <property name="text">
+    <string>Auto</string>
    </property>
   </action>
  </widget>

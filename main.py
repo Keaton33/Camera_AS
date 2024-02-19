@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import QApplication
 
 import pc_process
 import sc_process
-from UI import main_window, setting_window, alarm_window, comm_window
+from UI import main_window, setting_window, alarm_window, comm_window, automation_window
 import plc
 
 shared_data = {}
@@ -23,12 +23,15 @@ def update_ui(q_get):
     shared_data = q_get.get()
 
     main_window.show_pix(shared_data['img'])
-
-    main_window.show_center_act(str(shared_data['xyxy']))
-
-    setting_window.hoist_height = shared_data['hoist_height']
-    setting_window.xyxy = shared_data['xyxy']
-
+    main_window.ui.label_hbCenterSet.setText(str(shared_data['center_set'][1]))
+    main_window.ui.label_hbCenterAct.setText(str(shared_data['xyxy'][1]))
+    main_window.ui.label_trolleySpdCmd.setText(str(int(shared_data['trolley_spd_cmd'])))
+    main_window.ui.label_trolleySpdSet.setText(str(int(shared_data['trolley_spd_set'])))
+    main_window.ui.label_trolleySpdAct.setText(str(int(shared_data['trolley_spd_act'])))
+    main_window.ui.label_trolley_act_pos.setText(str(round(manager_list[6] / 1000, 3)))
+    main_window.ui.label_trolley_target_pos.setText(str(manager_list[15][0]))
+    main_window.ui.label_hoist_act_pos.setText(str(round(manager_list[5] / 1000, 3)))
+    main_window.ui.label_hoist_target_pos.setText(str(manager_list[15][1]))
 
 # endregion
 
@@ -114,16 +117,16 @@ def pc_main(q_put: Queue, manager_list_pc: multiprocessing.Manager):
             trolley_spd_auto = 0
 
         sway_control_process.sc_main(q_put, manager_list_pc, trolley_spd_auto, target[0])
-
         manager_list_pc[11] = hoist_motion
         manager_list_pc[12] = hoist_spd_auto
+        manager_list_pc[15] = target
         # print(time.time() - t)
 
 
 if __name__ == '__main__':
     q = Queue()
     manager = multiprocessing.Manager()
-    manager_list = manager.list([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    manager_list = manager.list([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
     # Start the processor to process frames
     p1 = Process(target=pc_main, args=(q, manager_list))
@@ -140,11 +143,13 @@ if __name__ == '__main__':
     setting_window = setting_window.SettingWindow()
     alarm_window = alarm_window.AlarmWindow()
     comm_window = comm_window.CommWindow()
+    # auto_window = automation_window.AutoWindow()
     main_window.show()
 
     main_window.ui.actionSettings.triggered.connect(setting_window.show)
     main_window.ui.actionComm.triggered.connect(comm_window.show)
     main_window.ui.actionAlarm.triggered.connect(alarm_window.show)
+    # main_window.ui.actionAuto.triggered.connect(auto_window.show)
     setting_window.ui.pushButton_top.clicked.connect(setting_window.start_point)
     setting_window.ui.pushButton_bottom.clicked.connect(setting_window.stop_point)
 
