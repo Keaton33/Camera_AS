@@ -15,20 +15,19 @@ class AutoWindow(QDialog):
         super().__init__()
         self.ui = automation.Ui_Dialog()
         self.ui.setupUi(self)
-        with open('.\config.json') as cfg:
+        with open('../config.json') as cfg:
             cfg_dit = json.load(cfg)
             self.profile = cfg_dit['profile']
 
-
         # 创建多边形
         self.points = QPolygon()
-        self.points.append(QPoint(self.profile[0][0] * 10, 450))
+        self.points.append(QPoint(self.profile[0][0] * 10 +50, 450))
         for coord in self.profile:
-            coord_1 = [coord[0] * 10, 450 - coord[1] * 10]
-            coord_2 = [coord[2] * 10, 450 - coord[1] * 10]
+            coord_1 = [coord[0] * 10 +50, 450 - coord[1] * 10]
+            coord_2 = [coord[2] * 10 +50, 450 - coord[1] * 10]
             self.points.append(QPoint(coord_1[0], coord_1[1]))
             self.points.append(QPoint(coord_2[0], coord_2[1]))
-        self.points.append(QPoint(self.profile[-1][-1] * 10, 450))
+        self.points.append(QPoint(self.profile[-1][-1] * 10 +50, 450))
 
         # 初始化要绘制的点列表
         self.points_to_draw = []
@@ -47,7 +46,7 @@ class AutoWindow(QDialog):
         # self.points_to_draw.clear()  # 清空要绘制的点列表
         # for coord in position_list:
         #     self.points_to_draw.append(QPoint(int(coord[0]) * 10, 450 - int(coord[1]) * 10))
-        self.points_to_draw.append(QPoint(int(position_list[0] * 10), 450 - int(position_list[1] * 10)))
+        self.points_to_draw.append(QPoint(int(position_list[0] * 10)+50, 450 - int(position_list[1] * 10)))
         self.update()  # 触发重绘事件
 
     def paintEvent(self, event):
@@ -66,10 +65,11 @@ class AutoWindow(QDialog):
         for point in self.points_to_draw:
             painter.drawEllipse(point, 1, 1)  # 绘制椭圆作为点，椭圆大小为5x5像素
 
+
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     auto = AutoWindow()
     auto.show()
     list = [[5, 10], [5.5, 10], [6, 11], [7, 15]]
-    auto.update_polygon(list)
+    # auto.update_polygon(list)
     sys.exit(app.exec_())

@@ -1,3 +1,4 @@
+import json
 import multiprocessing
 import sys
 import time
@@ -13,6 +14,7 @@ import plc
 
 shared_data = {}
 data1_1, data1_2, data1_3, data2_1, data2_2, data2_3, data3_1, data3_2 = [], [], [], [], [], [], [], []
+points = {}
 
 
 # region 'main window' thread for queue get all info to global variable
@@ -151,9 +153,63 @@ def set_target():
     for i in point_3.split(','):
         l3.append(float(i))
 
-    target_list = [l1,l2,l3]
+    target_list = [l1, l2, l3]
     manager_list[16] = target_list
     auto_window.points_to_draw.clear()
+
+setting_timer = QTimer()
+# region 'setting window' set reference start point
+def start_point():
+    setting_window.ui.label_hoist_height_top.setText(str(manager_list[5]))
+    setting_window.ui.label_xyxy_top.setText(str(shared_data['xyxy']))
+
+    setting_timer.timeout.connect(set_points)
+    setting_timer.start(50)
+
+    with open('./config.json', 'r') as cfg:
+        dic_cfg = json.load(cfg)
+        dic_cfg['process']['point_start'][0] = manager_list[5]
+        dic_cfg['process']['point_start'][1] = shared_data['xyxy'].tolist()
+    with open('./config.json', 'w') as cfg:
+        json.dump(dic_cfg, cfg)
+
+        cfg.close()
+
+
+# endregion
+
+# region 'setting window' save reference points to config.json
+def stop_point():
+    global points
+    setting_timer.stop()
+    setting_window.ui.label_hoist_height_bottom.setText(str(manager_list[5]))
+    setting_window.ui.label_xyxy_bottom.setText(str(shared_data['xyxy']))
+    with open('./config.json', 'r') as cfg:
+        dic_cfg = json.load(cfg)
+        dic_cfg['process']['point_stop'][0] = manager_list[5]
+        dic_cfg['process']['point_stop'][1] = shared_data['xyxy'].tolist()
+        dic_cfg['process']['points'] = points
+    with open('./config.json', 'w') as cfg:
+        json.dump(dic_cfg, cfg)  # , indent=4
+
+        cfg.close()
+
+
+# endregion
+
+# region 'setting window' thread for start_point
+def set_points():
+    global points
+    if points:
+        last_point_height = list(points.keys())[-1]
+        if last_point_height - manager_list[5] > 10:
+            points[manager_list[5]] = shared_data['xyxy'].tolist()
+    else:
+        points[manager_list[5]] = shared_data['xyxy'].tolist()
+    print(points)
+
+
+# endregion
 
 
 if __name__ == '__main__':
@@ -183,8 +239,8 @@ if __name__ == '__main__':
     main_window.ui.actionComm.triggered.connect(comm_window.show)
     main_window.ui.actionAlarm.triggered.connect(alarm_window.show)
     main_window.ui.actionAuto.triggered.connect(auto_window.show)
-    setting_window.ui.pushButton_top.clicked.connect(setting_window.start_point)
-    setting_window.ui.pushButton_bottom.clicked.connect(setting_window.stop_point)
+    setting_window.ui.pushButton_top.clicked.connect(start_point)
+    setting_window.ui.pushButton_bottom.clicked.connect(stop_point)
     auto_window.ui.pushButton.clicked.connect(set_target)
 
     # Start the thread to update the UI
