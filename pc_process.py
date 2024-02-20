@@ -5,7 +5,7 @@ import numpy as np
 
 class PC_Process:
     def __init__(self):
-        self.Kp_position = 10.0
+        self.Kp_position = 15.0
         self.Ki_position = 0.001
         self.Kd_position = 0.01
         self.prev_output_position = 0
@@ -27,9 +27,12 @@ class PC_Process:
             self.profile = np.array(cfg_dit['profile'])
         # 增加数据校验(数据连续、在行程内)
 
-    def get_target(self):
+    def get_target(self, targe_list):
         # self.preset_point = [[15, 16], [30, 16], [40, 12]]
-        self.preset_point = [[40, 16], [30, 16], [17.6, 14]]
+        if targe_list is None or not targe_list:
+            self.preset_point = [[40, 16], [30, 16], [17.6, 14]]
+        else:
+            self.preset_point = targe_list
         # 增加数据校验（按照向前或向后方向排序点、在行程内）
 
     def set_target(self, trolley_position, hoist_position):
@@ -63,11 +66,12 @@ class PC_Process:
                         profile_region_current_trolley = profile_region_current[2]
                         profile_region_current_hoist = profile_region_current[1]
                         profile_region_next_hoist = profile_region_next[1]
-
-                        if target_hoist < f_down_profile_max_height:
-                            target_hoist = f_down_profile_max_height
+                        # profile_region_next_trolley = profile_region_next[0]
 
                         if hoist_pos < target_hoist:  # 向上
+                            if target_hoist < f_down_profile_max_height:
+                                target_hoist = f_down_profile_max_height
+
                             if hoist_pos > profile_region_next_hoist:  # 增加高度确保安全
                                 target_next = [target_trolley, target_hoist]
                             elif hoist_pos < profile_region_current_hoist:
@@ -76,12 +80,15 @@ class PC_Process:
                                 target_next = [profile_region_current_trolley, target_hoist]  # 减小距离确保安全
                         else:  # 向下
 
-                            if hoist_pos > f_down_profile_max_height:  # 增加高度确保安全
+                            if hoist_pos > profile_region_next_hoist:  # 增加高度确保安全
                                 target_next = [target_trolley, target_hoist]
                             elif hoist_pos < profile_region_current_hoist:
-                                target_next = [trolley_pos, target_hoist]
+                                target_next = [trolley_pos, hoist_pos]
                             else:
-                                target_next = [profile_region_current_trolley, f_down_profile_max_height]
+                                if target_trolley > profile_region_current_trolley:
+                                    target_next = [profile_region_current_trolley, target_hoist]
+                                else:
+                                    target_next = [target_trolley, target_hoist]
                         break
 
             elif self.preset_point[-1][0] < trolley_pos and self.preset_point[-1][0] < self.preset_point[0][0]:  # 向后
@@ -111,10 +118,9 @@ class PC_Process:
                         profile_region_current_hoist = profile_region_current[1]
                         profile_region_next_hoist = profile_region_next[1]
 
-                        if target_hoist < b_down_profile_max_height:
-                            target_hoist = b_down_profile_max_height
-
                         if hoist_pos < target_hoist:  # 向上
+                            if target_hoist < b_down_profile_max_height:
+                                target_hoist = b_down_profile_max_height
 
                             if hoist_pos > profile_region_next_hoist:  # 增加高度确保安全
                                 target_next = [target_trolley, target_hoist]
@@ -124,12 +130,16 @@ class PC_Process:
                                 target_next = [profile_region_current_trolley, target_hoist]  # 减小距离确保安全
                         else:  # 向下
 
-                            if hoist_pos > b_down_profile_max_height:  # 增加高度确保安全
+                            if hoist_pos > profile_region_next_hoist:  # 增加高度确保安全
                                 target_next = [target_trolley, target_hoist]
                             elif hoist_pos < profile_region_current_hoist:
-                                target_next = [trolley_pos, target_hoist]
+                                target_next = [trolley_pos, hoist_pos]
                             else:
-                                target_next = [profile_region_current_trolley, b_down_profile_max_height]
+                                if target_trolley < profile_region_current_trolley:
+                                    target_next = [profile_region_current_trolley, target_hoist]
+                                else:
+                                    target_next = [target_trolley, target_hoist]
+
                         break
             else:
                 target_next = [self.preset_point[-1][0], self.preset_point[-1][1]]
@@ -153,7 +163,7 @@ class PC_Process:
         else:
             hoist_spd_cmd = max(-100, hoist_spd_limit)
 
-        if abs(hoist_pos - target_hoist) < 0.01:
+        if abs(hoist_pos - target_hoist) < 0.1:
             hoist_motion = 0.0
             hoist_spd_cmd = 0
         else:

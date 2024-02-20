@@ -229,15 +229,13 @@ background-color: rgb(0, 0, 0);</string>
              </property>
             </widget>
            </item>
-           <item row="1" column="1">
-            <widget class="QLabel" name="label_3">
-             <property name="text">
-              <string>mm</string>
-             </property>
-            </widget>
-           </item>
            <item row="1" column="0">
             <widget class="QLabel" name="label_hbCenterSet">
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
              <property name="layoutDirection">
               <enum>Qt::LeftToRight</enum>
              </property>
@@ -269,6 +267,11 @@ background-color: rgb(0, 0, 0);</string>
            </item>
            <item row="1" column="0">
             <widget class="QLabel" name="label_hbCenterAct">
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
              <property name="layoutDirection">
               <enum>Qt::LeftToRight</enum>
              </property>
@@ -277,13 +280,6 @@ background-color: rgb(0, 0, 0);</string>
              </property>
              <property name="alignment">
               <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="1">
-            <widget class="QLabel" name="label_6">
-             <property name="text">
-              <string>mm</string>
              </property>
             </widget>
            </item>
@@ -307,6 +303,13 @@ background-color: rgb(0, 0, 0);</string>
            </item>
            <item row="1" column="0">
             <widget class="QLabel" name="label_trolleySpdCmd">
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+               <weight>50</weight>
+               <bold>false</bold>
+              </font>
+             </property>
              <property name="layoutDirection">
               <enum>Qt::LeftToRight</enum>
              </property>
@@ -345,6 +348,13 @@ background-color: rgb(0, 0, 0);</string>
            </item>
            <item row="1" column="0">
             <widget class="QLabel" name="label_trolleySpdSet">
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+               <weight>50</weight>
+               <bold>false</bold>
+              </font>
+             </property>
              <property name="layoutDirection">
               <enum>Qt::LeftToRight</enum>
              </property>
@@ -383,6 +393,13 @@ background-color: rgb(0, 0, 0);</string>
            </item>
            <item row="1" column="0">
             <widget class="QLabel" name="label_trolleySpdAct">
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+               <weight>50</weight>
+               <bold>false</bold>
+              </font>
+             </property>
              <property name="layoutDirection">
               <enum>Qt::LeftToRight</enum>
              </property>
@@ -421,6 +438,13 @@ background-color: rgb(0, 0, 0);</string>
            </item>
            <item row="1" column="0">
             <widget class="QLabel" name="label_trolley_act_pos">
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+               <weight>50</weight>
+               <bold>false</bold>
+              </font>
+             </property>
              <property name="layoutDirection">
               <enum>Qt::LeftToRight</enum>
              </property>
@@ -434,6 +458,11 @@ background-color: rgb(0, 0, 0);</string>
            </item>
            <item row="1" column="1">
             <widget class="QLabel" name="label_trolley_target_pos">
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
              <property name="text">
               <string>825</string>
              </property>
@@ -462,6 +491,13 @@ background-color: rgb(0, 0, 0);</string>
            </item>
            <item row="1" column="0">
             <widget class="QLabel" name="label_hoist_act_pos">
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+               <weight>50</weight>
+               <bold>false</bold>
+              </font>
+             </property>
              <property name="layoutDirection">
               <enum>Qt::LeftToRight</enum>
              </property>
@@ -475,6 +511,11 @@ background-color: rgb(0, 0, 0);</string>
            </item>
            <item row="1" column="1">
             <widget class="QLabel" name="label_hoist_target_pos">
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
              <property name="text">
               <string>852</string>
              </property>

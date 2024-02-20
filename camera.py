@@ -124,8 +124,8 @@ class Camera:
                 skeleton_thickness = skeleton['thickness']
 
                 # 画骨架连接
-                img_bgr = cv2.line(img_bgr, (srt_kpt_x, srt_kpt_y), (dst_kpt_x, dst_kpt_y), color=skeleton_color,
-                                   thickness=skeleton_thickness)
+                # img_bgr = cv2.line(img_bgr, (srt_kpt_x, srt_kpt_y), (dst_kpt_x, dst_kpt_y), color=skeleton_color,
+                #                    thickness=skeleton_thickness)
 
             # 画该框的关键点
             for kpt_id in self.kpt_color_map:

@@ -1,50 +1,41 @@
-import sys
-from PyQt5.QtCore import QPointF, QPoint
-from PyQt5.QtGui import QPainter, QPolygonF, QColor
-from PyQt5.QtWidgets import QApplication, QDialog, QGraphicsScene
+from PyQt5 import QtGui
+from PyQt5.QtWidgets import QGraphicsScene, QGraphicsView, QFileDialog, QApplication, QDialog
+from PyQt5.QtGui import QPolygonF, QBrush, QPen, QColor
+from PyQt5.QtCore import Qt, QPointF
 from UI import automation
+from UI.automation import Ui_Dialog
 
 
-class PolygonWidget(QGraphicsScene):
+class CustomDialog(Ui_Dialog):
     def __init__(self):
         super().__init__()
+        self.setupUi(self)
+        self.graphics_scene = QGraphicsScene()
+        self.graphicsView.setScene(self.graphics_scene)
+        self.graphicsView.setRenderHint(QtGui.QPainter.Antialiasing)
 
-    def drawPolygon(self):
-        # Define the points of the polygon as QPointF
-        # points = QPolygonF([
-        #     QPointF(50, 50),
-        #     QPointF(200, 50),
-        #     QPointF(200, 200),
-        #     QPointF(100, 100),
-        #     QPointF(50, 200)
-        # ])
-        points_list = [[-100, 50],[200, 50],[200, 200],[100, 100],[50, 200]]
+        self.draw_button = self.pushButton
+        self.draw_button.clicked.connect(self.draw_polygon)
+
+    def draw_polygon(self):
         polygon = QPolygonF()
+        polygon.append(QPointF(100.0, 100.0))
+        polygon.append(QPointF(200.0, 100.0))
+        polygon.append(QPointF(200.0, 200.0))
+        polygon.append(QPointF(100.0, 200.0))
 
-        # 将坐标列表转换为 QPointF 对象，并添加到 QPolygonF 中
-        for i in points_list:
-            point = QPoint(i[0] , i[1])
-            polygon.append(point)
+        brush = QBrush(Qt.green)
+        pen = QPen(Qt.blue)
+        pen.setWidth(2)
+        pen.setStyle(Qt.SolidLine)
 
-        # Set the color of the polygon
-        color = QColor(255, 0, 0)
-        self.addPolygon(polygon, color)
-
-
-class AutoWindow(QDialog):
-    def __init__(self):
-        super().__init__()
-        self.ui = automation.Ui_Dialog()
-        self.ui.setupUi(self)
-
-        # Create a QGraphicsScene object and set its parent to the graphicsView
-        self.scene = PolygonWidget()
-        self.ui.graphicsView.setScene(self.scene)
-        self.scene.drawPolygon()
+        self.graphics_scene.addPolygon(polygon, pen, brush)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    import sys
+
     app = QApplication(sys.argv)
-    auto = AutoWindow()
-    auto.show()
+    dialog = CustomDialog()
+    dialog.show()
     sys.exit(app.exec_())
